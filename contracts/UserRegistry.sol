@@ -1,17 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-/**
- * @title UserRegistry
- * @notice Manages user identities, roles, and account lifecycle on-chain.
- * @dev Includes role-based access control, account status validation,
- *      comprehensive action logging, and per-user nonces for replay protection.
- */
+// On-chain user registry with SIWE-style signature authentication
 contract UserRegistry {
 
-    // -------------------------------------------------------------------------
     // Types
-    // -------------------------------------------------------------------------
 
     enum Role { None, User, Moderator, Admin }
 
@@ -20,7 +13,9 @@ contract UserRegistry {
         RoleChanged,
         Deactivated,
         Reactivated,
-        NonceIncremented
+        NonceIncremented,
+        LoginSuccess,
+        LoginFailed
     }
 
     struct User {
@@ -28,29 +23,22 @@ contract UserRegistry {
         Role    role;
         bytes32 identityHash;
         bool    isActive;
-        uint256 nonce;          // per-user monotonic counter (replay protection)
+        uint256 nonce;
     }
 
-    // -------------------------------------------------------------------------
     // State
-    // -------------------------------------------------------------------------
 
     address public immutable owner;
-
     mapping(address => User) private _users;
 
-    // -------------------------------------------------------------------------
     // Events
-    // -------------------------------------------------------------------------
 
-    /// @notice Emitted whenever a user registers for the first time.
     event UserRegistered(
         address indexed walletAddress,
         bytes32         identityHash,
         uint256         timestamp
     );
 
-    /// @notice Emitted when an admin changes a user's role.
     event RoleChanged(
         address indexed walletAddress,
         Role    indexed oldRole,
@@ -59,29 +47,18 @@ contract UserRegistry {
         uint256         timestamp
     );
 
-    /// @notice Emitted when a user account is deactivated.
     event UserDeactivated(
         address indexed walletAddress,
         address         deactivatedBy,
         uint256         timestamp
     );
 
-    /// @notice Emitted when a user account is reactivated.
     event UserReactivated(
         address indexed walletAddress,
         address         reactivatedBy,
         uint256         timestamp
     );
 
-    /**
-     * @notice Generic action log — provides a single, queryable stream of every
-     *         state-changing operation performed on the registry.
-     * @param actor     The address that triggered the action.
-     * @param target    The address the action was performed on (may equal actor).
-     * @param action    Enum discriminator describing what happened.
-     * @param nonce     The target user's nonce *after* the action completed.
-     * @param timestamp Block timestamp at the time of the action.
-     */
     event ActionLogged(
         address    indexed actor,
         address    indexed target,
@@ -90,9 +67,14 @@ contract UserRegistry {
         uint256            timestamp
     );
 
-    // -------------------------------------------------------------------------
-    // Errors  (gas-cheaper than require strings in Solidity >= 0.8.4)
-    // -------------------------------------------------------------------------
+    event LoginAttempt(
+        address indexed wallet,
+        bool            success,
+        uint256         nonce,
+        uint256         timestamp
+    );
+
+    // Errors
 
     error NotOwner();
     error NotAdmin();
@@ -109,22 +91,16 @@ contract UserRegistry {
     error CannotDeactivateOwner();
     error CannotDowngradeOwner();
     error UnauthorizedRoleChange();
+    error InvalidSignature();
+    error InvalidSignatureLength();
 
-    // -------------------------------------------------------------------------
     // Modifiers
-    // -------------------------------------------------------------------------
 
-    /// @dev Restricts to the immutable contract owner.
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
         _;
     }
 
-    /**
-     * @dev Restricts to active Admin-role users OR the contract owner.
-     *      The owner always passes even before they appear in the mapping
-     *      (constructor registers them, but guard is belt-and-suspenders).
-     */
     modifier onlyAdmin() {
         if (
             msg.sender != owner &&
@@ -136,10 +112,6 @@ contract UserRegistry {
         _;
     }
 
-    /**
-     * @dev Restricts to active Moderator-or-above users OR the contract owner.
-     *      Moderators may perform lighter-weight administrative actions.
-     */
     modifier onlyModeratorOrAbove() {
         bool isMod   = _users[msg.sender].role == Role.Moderator && _users[msg.sender].isActive;
         bool isAdmin = _users[msg.sender].role == Role.Admin     && _users[msg.sender].isActive;
@@ -148,32 +120,25 @@ contract UserRegistry {
         _;
     }
 
-    /// @dev Validates that `_user` exists in the registry.
     modifier userExists(address _user) {
         if (_users[_user].walletAddress == address(0)) revert NotRegistered(_user);
         _;
     }
 
-    /// @dev Validates that `_user` is currently active.
     modifier onlyActiveUser(address _user) {
         if (!_users[_user].isActive) revert UserNotActive(_user);
         _;
     }
 
-    /// @dev Validates that `_user` is currently inactive.
     modifier onlyInactiveUser(address _user) {
         if (_users[_user].isActive) revert UserAlreadyActive(_user);
         _;
     }
 
-    // -------------------------------------------------------------------------
     // Constructor
-    // -------------------------------------------------------------------------
 
     constructor() {
         owner = msg.sender;
-
-        // Register the deployer as the root Admin automatically.
         _users[msg.sender] = User({
             walletAddress: msg.sender,
             role:          Role.Admin,
@@ -181,19 +146,95 @@ contract UserRegistry {
             isActive:      true,
             nonce:         0
         });
-
         emit UserRegistered(msg.sender, bytes32(0), block.timestamp);
         emit ActionLogged(msg.sender, msg.sender, ActionType.Registered, 0, block.timestamp);
     }
 
-    // -------------------------------------------------------------------------
-    // External — write functions
-    // -------------------------------------------------------------------------
+    // Authentication functions
 
-    /**
-     * @notice Register the caller as a new user.
-     * @param _identityHash Off-chain identity commitment (e.g. keccak256 of KYC data).
-     */
+    function generateNonce(address _user)
+        external
+        view
+        userExists(_user)
+        onlyActiveUser(_user)
+        returns (string memory)
+    {
+        uint256 currentNonce = _users[_user].nonce;
+
+        return string(
+            abi.encodePacked(
+                "Sign in to UserRegistry\n",
+                "Wallet: ",   _toHexString(uint160(_user), 20), "\n",
+                "Nonce: ",    _uint2str(currentNonce),           "\n",
+                "Contract: ", _toHexString(uint160(address(this)), 20), "\n",
+                "Chain ID: ", _uint2str(block.chainid)
+            )
+        );
+    }
+
+    function verifySignature(bytes calldata _signature)
+        external
+        userExists(msg.sender)
+        onlyActiveUser(msg.sender)
+        returns (bool)
+    {
+        if (_signature.length != 65) revert InvalidSignatureLength();
+
+        uint256 currentNonce = _users[msg.sender].nonce;
+
+        string memory message = string(
+            abi.encodePacked(
+                "Sign in to UserRegistry\n",
+                "Wallet: ",   _toHexString(uint160(msg.sender), 20), "\n",
+                "Nonce: ",    _uint2str(currentNonce),                "\n",
+                "Contract: ", _toHexString(uint160(address(this)), 20), "\n",
+                "Chain ID: ", _uint2str(block.chainid)
+            )
+        );
+
+        bytes32 msgHash = keccak256(bytes(message));
+        bytes32 prefixedHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", msgHash)
+        );
+
+        bytes32 r;
+        bytes32 s;
+        uint8   v;
+        bytes memory sig = _signature;
+        assembly {
+            r := mload(add(sig, 32))
+            s := mload(add(sig, 64))
+            v := byte(0, mload(add(sig, 96)))
+        }
+
+        if (v < 27) v += 27;
+
+        address recovered = ecrecover(prefixedHash, v, r, s);
+
+        if (recovered == address(0) || recovered != msg.sender) {
+            emit LoginAttempt(msg.sender, false, currentNonce, block.timestamp);
+            emit ActionLogged(
+                msg.sender, msg.sender,
+                ActionType.LoginFailed,
+                currentNonce, block.timestamp
+            );
+            revert InvalidSignature();
+        }
+
+        unchecked { _users[msg.sender].nonce++; }
+
+        emit LoginAttempt(msg.sender, true, currentNonce, block.timestamp);
+        emit ActionLogged(
+            msg.sender, msg.sender,
+            ActionType.LoginSuccess,
+            _users[msg.sender].nonce,
+            block.timestamp
+        );
+        return true;
+    }
+
+    // User management functions
+
     function registerUser(bytes32 _identityHash) external returns (bool) {
         if (_users[msg.sender].walletAddress != address(0)) revert AlreadyRegistered(msg.sender);
         if (_identityHash == bytes32(0))                    revert EmptyIdentityHash();
@@ -211,13 +252,6 @@ contract UserRegistry {
         return true;
     }
 
-    /**
-     * @notice Assign a new role to a registered user.
-     * @dev Only Admins may promote/demote. The owner cannot be demoted by anyone.
-     *      Only the owner may promote someone to Admin.
-     * @param _user    Target user address.
-     * @param _newRole Desired role (must not be Role.None).
-     */
     function assignRole(address _user, Role _newRole)
         external
         onlyAdmin
@@ -230,10 +264,7 @@ contract UserRegistry {
         Role oldRole = _users[_user].role;
         if (oldRole == _newRole)   revert SameRoleAssigned();
 
-        // Guard: nobody can demote the owner.
         if (_user == owner && _newRole != Role.Admin) revert CannotDowngradeOwner();
-
-        // Guard: only the owner can promote someone to Admin.
         if (_newRole == Role.Admin && msg.sender != owner) revert UnauthorizedRoleChange();
 
         _users[_user].role = _newRole;
@@ -246,12 +277,6 @@ contract UserRegistry {
         return true;
     }
 
-    /**
-     * @notice Deactivate an active user account.
-     * @dev Admins and Moderators may deactivate regular Users.
-     *      Only Admins may deactivate Moderators.
-     *      Nobody may deactivate the owner.
-     */
     function deactivateUser(address _user)
         external
         onlyModeratorOrAbove
@@ -262,7 +287,6 @@ contract UserRegistry {
         if (_user == msg.sender) revert CannotSelfDeactivate();
         if (_user == owner)      revert CannotDeactivateOwner();
 
-        // Moderators cannot deactivate Admins.
         Role callerRole = _users[msg.sender].role;
         Role targetRole = _users[_user].role;
         if (callerRole == Role.Moderator && targetRole == Role.Admin) revert NotAdmin();
@@ -277,10 +301,6 @@ contract UserRegistry {
         return true;
     }
 
-    /**
-     * @notice Reactivate a previously deactivated user account.
-     * @dev Admin-only operation.
-     */
     function reactivateUser(address _user)
         external
         onlyAdmin
@@ -298,11 +318,6 @@ contract UserRegistry {
         return true;
     }
 
-    /**
-     * @notice Increment the caller's nonce.
-     * @dev Used externally to anchor off-chain signatures and prevent replay.
-     *      Returns the nonce value consumed (i.e. before the increment).
-     */
     function incrementNonce()
         external
         userExists(msg.sender)
@@ -310,22 +325,18 @@ contract UserRegistry {
         returns (uint256 consumed)
     {
         consumed = _users[msg.sender].nonce;
-        unchecked { _users[msg.sender].nonce++; }   // overflow impossible in practice
+        unchecked { _users[msg.sender].nonce++; }
 
         emit ActionLogged(
-            msg.sender,
-            msg.sender,
+            msg.sender, msg.sender,
             ActionType.NonceIncremented,
-            _users[msg.sender].nonce,   // post-increment value
+            _users[msg.sender].nonce,
             block.timestamp
         );
     }
 
-    // -------------------------------------------------------------------------
-    // External — view / pure functions
-    // -------------------------------------------------------------------------
+    // View functions
 
-    /// @notice Returns the full User struct for `_user`.
     function getUserDetails(address _user)
         external
         view
@@ -335,31 +346,56 @@ contract UserRegistry {
         return _users[_user];
     }
 
-    /// @notice Returns `true` if `_user` has ever registered.
     function isRegistered(address _user) external view returns (bool) {
         return _users[_user].walletAddress != address(0);
     }
 
-    /// @notice Returns the current role of `_user`.
     function getRole(address _user) external view returns (Role) {
         return _users[_user].role;
     }
 
-    /**
-     * @notice Returns `true` if `_user` holds `_role` AND is currently active.
-     * @dev Convenience helper for off-chain callers and other contracts.
-     */
     function hasRole(address _user, Role _role) external view returns (bool) {
         return _users[_user].role == _role && _users[_user].isActive;
     }
 
-    /// @notice Returns the current nonce of `_user` without modifying state.
     function getNonce(address _user) external view returns (uint256) {
         return _users[_user].nonce;
     }
 
-    /// @notice Returns `true` if `_user` is registered and active.
     function isActiveUser(address _user) external view returns (bool) {
         return _users[_user].walletAddress != address(0) && _users[_user].isActive;
+    }
+
+    // Internal helpers
+
+    function _uint2str(uint256 value) internal pure returns (string memory) {
+        if (value == 0) return "0";
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) { digits++; temp /= 10; }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits--;
+            buffer[digits] = bytes1(uint8(48 + (value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
+    }
+
+    function _toHexString(uint256 value, uint256 length)
+        internal
+        pure
+        returns (string memory)
+    {
+        bytes memory buffer = new bytes(2 + length * 2);
+        buffer[0] = "0";
+        buffer[1] = "x";
+        bytes16 hexChars = "0123456789abcdef";
+        for (uint256 i = 2 + length * 2 - 1; i >= 2; i--) {
+            buffer[i] = hexChars[value & 0xf];
+            value >>= 4;
+            if (i == 2) break;
+        }
+        return string(buffer);
     }
 }
