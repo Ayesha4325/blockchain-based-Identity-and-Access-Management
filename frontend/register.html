@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IdentityManager — Register</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--ink:#0d0d0d;--paper:#f4f1eb;--cream:#ede9df;--accent:#c8f04d;--accent2:#3a3aff;--muted:#888070;--border:#c9c4b8;--success:#1a9c5b;--error:#d63030;--mono:'DM Mono',monospace;--sans:'Syne',sans-serif}
+  html,body{height:100%;background:var(--paper);color:var(--ink);font-family:var(--sans);overflow-x:hidden}
+  body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:9999;opacity:0.35}
+  .shell{min-height:100vh;display:grid;grid-template-rows:auto 1fr auto}
+  header{display:flex;align-items:center;justify-content:space-between;padding:20px 36px;border-bottom:1.5px solid var(--border);background:var(--paper)}
+  .logo{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;letter-spacing:-0.01em}
+  .logo-mark{width:28px;height:28px;background:var(--ink);border-radius:6px;display:flex;align-items:center;justify-content:center}
+  .logo-mark svg{width:14px;height:14px}
+  .nav-link { font-family: var(--mono); font-size: 12px; color: var(--muted); text-decoration: none; padding: 9px 18px; border: 1.5px solid var(--border); border-radius: 100px; transition: all 0.2s; display: flex; align-items: center; gap: 8px;}
+  .nav-link:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .connect-btn{font-family:var(--mono);font-size:12px;padding:9px 18px;border:1.5px solid var(--border);border-radius:100px;background:transparent;color:var(--ink);cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:7px}
+  .connect-btn:hover{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .connect-btn.live{background:var(--ink);color:var(--accent);border-color:var(--ink)}
+  .connect-btn .dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 1.8s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+  main{display:flex;align-items:center;justify-content:center;padding:48px 24px}
+  .card-wrap{width:100%;max-width:520px;opacity:0;transform:translateY(28px);animation:fadeUp 0.55s cubic-bezier(.22,.68,0,1.2) 0.1s forwards}
+  @keyframes fadeUp{to{opacity:1;transform:translateY(0)}}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:0.12em;color:var(--muted);text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .eyebrow::before{content:'';display:inline-block;width:20px;height:1.5px;background:var(--muted)}
+  h1{font-size:clamp(32px,6vw,48px);font-weight:800;letter-spacing:-0.03em;line-height:1.05;margin-bottom:8px}
+  h1 span{display:inline-block;background:var(--accent);padding:0 6px 2px;border-radius:4px;color:var(--ink)}
+  .subtitle{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-bottom:36px;line-height:1.6}
+  .card{background:var(--cream);border:1.5px solid var(--border);border-radius:16px;padding:32px;position:relative;overflow:hidden}
+  .card::before{content:'';position:absolute;top:-60px;right:-60px;width:180px;height:180px;background:radial-gradient(circle,rgba(200,240,77,0.25) 0%,transparent 70%);pointer-events:none}
+  .wallet-strip{background:var(--paper);border:1.5px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:24px;display:flex;align-items:center;gap:12px}
+  .wallet-strip .icon{width:36px;height:36px;border-radius:8px;background:var(--ink);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .wallet-strip .icon svg{width:16px;height:16px}
+  .wallet-strip .info{flex:1;min-width:0}
+  .wallet-strip .label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px}
+  .wallet-strip .addr{font-family:var(--mono);font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .status-pill{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:100px;background:var(--border);color:var(--muted);flex-shrink:0}
+  .status-pill.live{background:#d4f7e1;color:var(--success)}
+  .field{margin-bottom:20px}
+  .field:last-of-type{margin-bottom:0}
+  label{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px}
+  input{width:100%;padding:13px 16px;border:1.5px solid var(--border);border-radius:10px;background:var(--paper);color:var(--ink);font-family:var(--mono);font-size:13px;outline:none;transition:border-color 0.18s,box-shadow 0.18s}
+  input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(58,58,255,0.1)}
+  input::placeholder{color:var(--border)}
+  input[readonly]{background:var(--cream);color:var(--muted);cursor:default}
+  input[readonly]:focus{border-color:var(--border);box-shadow:none}
+  .hash-field{position:relative}
+  .hash-field input{padding-right:70px;font-size:11.5px}
+  .hash-badge{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--border);padding:3px 8px;border-radius:100px;pointer-events:none;transition:all 0.2s}
+  .hash-badge.ready{background:#d4f7e1;color:var(--success)}
+  .divider{height:1.5px;background:var(--border);margin:24px 0}
+  .submit-btn{width:100%;padding:16px;background:var(--ink);color:var(--accent);border:none;border-radius:10px;font-family:var(--sans);font-size:15px;font-weight:700;letter-spacing:-0.01em;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:24px}
+  .submit-btn:hover:not(:disabled){background:#1a1a1a;transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,0,0,0.15)}
+  .submit-btn:active:not(:disabled){transform:translateY(0)}
+  .submit-btn:disabled{opacity:0.4;cursor:not-allowed}
+  .result-panel{margin-top:20px;border-radius:12px;padding:20px;display:none;animation:fadeUp 0.3s ease}
+  .result-panel.success{background:#e8faf1;border:1.5px solid #a8e6c0}
+  .result-panel.error{background:#fef0f0;border:1.5px solid #f5b8b8}
+  .result-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .result-icon{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+  .result-panel.success .result-icon{background:#d4f7e1}
+  .result-panel.error .result-icon{background:#fdd}
+  .result-title{font-weight:700;font-size:15px}
+  .result-panel.success .result-title{color:var(--success)}
+  .result-panel.error .result-title{color:var(--error)}
+  .result-rows{display:flex;flex-direction:column;gap:8px}
+  .result-row{display:flex;flex-direction:column;gap:3px}
+  .result-row-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted)}
+  .result-row-val{font-family:var(--mono);font-size:12px;word-break:break-all}
+  .result-panel.success .result-row-val{color:#0d4a28}
+  .result-panel.error .result-row-val{color:#6b1414}
+  .tx-link{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:12px;color:var(--accent2);text-decoration:none;margin-top:4px}
+  .tx-link:hover{text-decoration:underline}
+  .note{font-family:var(--mono);font-size:11.5px;color:var(--muted);line-height:1.6;display:flex;gap:8px}
+  .note::before{content:'→';flex-shrink:0;color:var(--accent2)}
+  .spinner{display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:12.5px;padding:12px 20px;border-radius:100px;opacity:0;transition:all 0.3s cubic-bezier(.22,.68,0,1.2);pointer-events:none;white-space:nowrap;z-index:1000}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.err{background:var(--error)}
+  footer{border-top:1.5px solid var(--border);padding:16px 36px;display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .chain-info{display:flex;align-items:center;gap:6px}
+  .chain-dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:background 0.3s}
+  .chain-dot.live{background:var(--success)}
+  @media(max-width:580px){header{padding:16px 20px}.card{padding:22px 18px}footer{padding:14px 20px}h1{font-size:28px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="5" r="3" stroke="#c8f04d" stroke-width="1.5"/><path d="M1 13c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="#c8f04d" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      IdentityManager
+    </div>
+    <div class="header-right">
+      <a href="login.html" class="nav-link">Sign In →</a>
+      <button class="connect-btn" id="connect-btn" onclick="connectWallet()">
+        <span class="dot"></span>
+        <span id="connect-label">Connect wallet</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <div class="card-wrap">
+      <div class="eyebrow">On-chain identity</div>
+      <h1>Register<br>your <span>wallet</span></h1>
+      <p class="subtitle">Bind your wallet address to a KYC identity hash.<br>One-time registration · No password · Immutable on-chain.</p>
+
+      <div class="card">
+        <div class="wallet-strip">
+          <div class="icon">
+            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="4" width="14" height="10" rx="2" stroke="#c8f04d" stroke-width="1.4"/><path d="M1 7h14" stroke="#c8f04d" stroke-width="1.4"/><circle cx="11.5" cy="10.5" r="1" fill="#c8f04d"/></svg>
+          </div>
+          <div class="info">
+            <div class="label">Connected wallet</div>
+            <div class="addr" id="wallet-addr">Not connected — click "Connect wallet"</div>
+          </div>
+          <div class="status-pill" id="wallet-pill">Offline</div>
+        </div>
+
+        <div class="field">
+          <label>KYC / identity label</label>
+          <input type="text" id="kyc-input" placeholder="e.g. alice-kyc-2025" oninput="onKycInput(this.value)" autocomplete="off">
+        </div>
+
+        <div class="field">
+          <label>Identity hash <small style="text-transform:none;letter-spacing:0">(keccak256 — auto computed)</small></label>
+          <div class="hash-field">
+            <input type="text" id="hash-preview" readonly placeholder="Enter a label above…">
+            <span class="hash-badge" id="hash-badge">—</span>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="note">Your label is hashed client-side. Only the hash is stored on-chain — your raw label stays private.</div>
+
+        <button class="submit-btn" id="reg-btn" onclick="registerUser()" disabled>Register identity ↗</button>
+
+        <div class="result-panel" id="result-panel">
+          <div class="result-header">
+            <div class="result-icon" id="result-icon"></div>
+            <div class="result-title" id="result-title"></div>
+          </div>
+          <div class="result-rows" id="result-rows"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="chain-info">
+      <div class="chain-dot" id="chain-dot"></div>
+      <span id="chain-label">No network</span>
+    </div>
+    <span id="contract-label">Contract: not set</span>
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+const ABI = [
+  "function registerUser(bytes32 identityHash) external returns (bool)",
+  "function isRegistered(address wallet) external view returns (bool)",
+  "event UserRegistered(address indexed wallet, bytes32 identityHash, uint256 timestamp)"
+];
+
+let provider, signer, contract, userAddress;
+let listenersAttached = false;
+let toastTimer;
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function toast(msg, isErr = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (isErr ? ' err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3800);
+}
+
+function onKycInput(val) {
+  const preview = document.getElementById('hash-preview');
+  const badge = document.getElementById('hash-badge');
+  const btn = document.getElementById('reg-btn');
+  const sanitized = val.replace(/[<>"']/g, '');
+
+  if (sanitized !== val) {
+    document.getElementById('kyc-input').value = sanitized;
+    return;
+  }
+  if (!sanitized.trim()) {
+    preview.value = '';
+    badge.textContent = '—';
+    badge.className = 'hash-badge';
+    btn.disabled = true;
+    return;
+  }
+  const hash = ethers.keccak256(ethers.toUtf8Bytes(sanitized.trim()));
+  preview.value = hash;
+  badge.textContent = 'Ready';
+  badge.className = 'hash-badge ready';
+  btn.disabled = !userAddress;
+}
+
+async function connectWallet() {
+  if (!window.ethereum) {
+    toast('MetaMask not detected — install it to continue.', true);
+    return;
+  }
+  try {
+    provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    signer = await provider.getSigner();
+    userAddress = await signer.getAddress();
+    contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+    const code = await provider.getCode(CONTRACT_ADDRESS);
+    if (code === '0x') {
+      toast('No contract found at ' + CONTRACT_ADDRESS.slice(0, 10) + '…', true);
+      return;
+    }
+
+    const network = await provider.getNetwork();
+    const btn = document.getElementById('connect-btn');
+    document.getElementById('connect-label').textContent = userAddress.slice(0, 6) + '…' + userAddress.slice(-4);
+    btn.classList.add('live');
+
+    document.getElementById('wallet-addr').textContent = userAddress;
+    const pill = document.getElementById('wallet-pill');
+    pill.textContent = 'Live';
+    pill.classList.add('live');
+
+    document.getElementById('chain-dot').classList.add('live');
+    const netName = network.name === 'unknown' ? 'Chain ' + network.chainId : network.name;
+    document.getElementById('chain-label').textContent = netName;
+    document.getElementById('contract-label').textContent = 'Contract: ' + CONTRACT_ADDRESS.slice(0, 10) + '…' + CONTRACT_ADDRESS.slice(-6);
+
+    const kycVal = document.getElementById('kyc-input').value;
+    document.getElementById('reg-btn').disabled = !kycVal.trim();
+
+    toast('Wallet connected — ' + userAddress.slice(0, 6) + '…' + userAddress.slice(-4));
+
+    try {
+      const already = await contract.isRegistered(userAddress);
+      if (already) {
+        showResult('error', '⚠', 'Already registered', [
+          { label: 'Wallet', val: userAddress },
+          { label: 'Note', val: 'This wallet is already registered on-chain.' }
+        ]);
+        document.getElementById('reg-btn').disabled = true;
+      }
+    } catch(e) {
+      console.warn('isRegistered check failed:', parseErr(e));
+    }
+
+    if (!listenersAttached) {
+      window.ethereum.on('accountsChanged', () => location.reload());
+      window.ethereum.on('chainChanged', () => location.reload());
+      listenersAttached = true;
+    }
+  } catch (e) {
+    toast(parseErr(e), true);
+  }
+}
+
+async function registerUser() {
+  if (!signer) { toast('Connect your wallet first', true); return; }
+  const kycLabel = document.getElementById('kyc-input').value.trim();
+  if (!kycLabel) { toast('Enter an identity label', true); return; }
+
+  const hash = ethers.keccak256(ethers.toUtf8Bytes(kycLabel));
+  const btn = document.getElementById('reg-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Awaiting signature…';
+  hideResult();
+
+  try {
+    const tx = await contract.registerUser(hash);
+    btn.innerHTML = '<span class="spinner"></span> Confirming block…';
+    toast('Transaction submitted — waiting for confirmation…');
+
+    const receipt = await tx.wait();
+    showResult('success', '✓', 'Registration successful', [
+      { label: 'Wallet', val: userAddress },
+      { label: 'Identity hash', val: hash },
+      { label: 'Block', val: '#' + receipt.blockNumber },
+      { label: 'Gas used', val: receipt.gasUsed.toString() + ' gas' },
+      { label: 'Tx hash', val: receipt.hash, link: getTxLink(receipt.hash) }
+    ]);
+    toast('Registered successfully!');
+    btn.innerHTML = '✓ Registered';
+  } catch (e) {
+    const msg = parseErr(e);
+    showResult('error', '✕', 'Registration failed', [{ label: 'Reason', val: msg }]);
+    toast(msg, true);
+    btn.disabled = false;
+    btn.innerHTML = 'Register identity ↗';
+  }
+}
+
+function showResult(type, icon, title, rows) {
+  const panel = document.getElementById('result-panel');
+  document.getElementById('result-icon').textContent = icon;
+  document.getElementById('result-title').textContent = title;
+  const rowsEl = document.getElementById('result-rows');
+  rowsEl.innerHTML = rows.map(r => `
+    <div class="result-row">
+      <div class="result-row-label">${escapeHtml(r.label)}</div>
+      ${r.link
+        ? `<a class="tx-link" href="${escapeHtml(r.link)}" target="_blank">${escapeHtml(r.val.slice(0,20))}…${escapeHtml(r.val.slice(-12))} ↗</a>`
+        : `<div class="result-row-val">${escapeHtml(r.val)}</div>`
+      }
+    </div>
+  `).join('');
+  panel.className = 'result-panel ' + type;
+  panel.style.display = 'block';
+}
+
+function hideResult() {
+  document.getElementById('result-panel').style.display = 'none';
+}
+
+function getTxLink(hash) {
+  try {
+    const chainId = parseInt(window.ethereum.chainId, 16);
+    const explorers = {
+      11155111: 'https://sepolia.etherscan.io/tx/',
+      31337: null,
+    };
+    const base = explorers[chainId];
+    return base ? base + hash : null;
+  } catch { return null; }
+}
+
+function parseErr(e) {
+  if (e.reason) return e.reason;
+  const m = e.message || '';
+  const custom = m.match(/reverted with custom error '([^']+)'/);
+  if (custom) return custom[1];
+  const reason = m.match(/reason="([^"]+)"/);
+  if (reason) return reason[1];
+  if (m.includes('user rejected')) return 'Transaction rejected by user';
+  return m.length > 90 ? m.slice(0, 90) + '…' : m || 'Transaction failed';
+}
+</script>
+</body>
+</html>
