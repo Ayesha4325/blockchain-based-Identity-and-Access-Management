@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IdentityManager — Sign In</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/login.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="5" height="5" rx="1" fill="#f4f1eb"/>
+          <rect x="8" y="1" width="5" height="5" rx="1" fill="#f4f1eb" opacity="0.5"/>
+          <rect x="1" y="8" width="5" height="5" rx="1" fill="#f4f1eb" opacity="0.5"/>
+          <rect x="8" y="8" width="5" height="5" rx="1" fill="#c8f04d"/>
+        </svg>
+      </div>
+      IdentityManager
+    </div>
+    <div class="header-right">
+      <a href="register.html" class="nav-link">Register →</a>
+      <button class="connect-btn" id="connect-btn" onclick="connectWallet()">
+        <span class="dot"></span>
+        <span id="connect-label">Connect wallet</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <div class="card-wrap">
+      <div class="eyebrow">IdentityManager · v1</div>
+      <h1>Sign in<br>with your <span>wallet</span></h1>
+      <p class="subtitle">
+        No password. No email.<br>
+        Sign a nonce with MetaMask — verified on-chain.
+      </p>
+
+      <div class="card">
+
+        <!-- STEPS -->
+        <div class="steps">
+          <div class="step done" id="step-connect">
+            <div class="step-num" id="step-connect-num">1</div>
+            <div class="step-text">Connect</div>
+          </div>
+          <div class="step-line" id="line-1"></div>
+          <div class="step" id="step-fetch">
+            <div class="step-num" id="step-fetch-num">2</div>
+            <div class="step-text">Fetch nonce</div>
+          </div>
+          <div class="step-line" id="line-2"></div>
+          <div class="step" id="step-sign">
+            <div class="step-num" id="step-sign-num">3</div>
+            <div class="step-text">Sign &amp; verify</div>
+          </div>
+        </div>
+
+        <!-- WALLET -->
+        <div class="wallet-strip">
+          <div class="icon">
+            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="1" y="4" width="14" height="10" rx="2" stroke="#f4f1eb" stroke-width="1.4"/>
+              <path d="M1 7h14" stroke="#f4f1eb" stroke-width="1.4"/>
+              <circle cx="11.5" cy="10.5" r="1.5" fill="#c8f04d"/>
+            </svg>
+          </div>
+          <div class="info">
+            <div class="label">Connected wallet</div>
+            <div class="addr" id="wallet-addr">Not connected — click "Connect wallet"</div>
+          </div>
+          <div class="status-pill" id="wallet-pill">Offline</div>
+        </div>
+
+        <!-- NONCE -->
+        <div class="nonce-strip">
+          <div class="nonce-left">
+            <div class="nonce-label">Current nonce</div>
+            <div class="nonce-val" id="nonce-val">—</div>
+          </div>
+          <div class="nonce-right">
+            <span class="nonce-tag" id="nonce-tag">Not fetched</span>
+            <button class="fetch-btn" id="fetch-btn" onclick="fetchNonce()" disabled>Fetch nonce</button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="note">
+          A unique message is constructed using your wallet address, the current nonce, and the contract address. You sign its hash — the contract recovers and verifies the signer.
+        </div>
+
+        <button class="submit-btn" id="sign-btn" onclick="signIn()" disabled>
+          Sign in ↗
+        </button>
+
+        <div class="result-panel" id="result-panel">
+          <div class="result-header">
+            <div class="result-icon" id="result-icon"></div>
+            <div class="result-title" id="result-title"></div>
+          </div>
+          <div class="result-rows" id="result-rows"></div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="chain-info">
+      <div class="chain-dot" id="chain-dot"></div>
+      <span id="chain-label">No network</span>
+    </div>
+    <span id="contract-label">Contract: not set</span>
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="../js/login.js"></script>
+
+</body>
+</html>

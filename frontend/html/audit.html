@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IdentityManager — Audit Viewer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/audit.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div class="loading-logo">IdentityManager</div>
+  <div class="spinner" style="width:20px;height:20px;border-width:2.5px;color:var(--muted)"></div>
+  <div class="loading-sub" id="loading-msg">Connecting wallet…</div>
+</div>
+
+<div class="shell" id="app" style="display:none">
+  <header>
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="5" height="5" rx="1" fill="#f4f1eb"/>
+          <rect x="8" y="1" width="5" height="5" rx="1" fill="#f4f1eb" opacity="0.5"/>
+          <rect x="1" y="8" width="5" height="5" rx="1" fill="#f4f1eb" opacity="0.5"/>
+          <rect x="8" y="8" width="5" height="5" rx="1" fill="#c8f04d"/>
+        </svg>
+      </div>
+      IdentityManager
+    </div>
+    <span class="page-chip">Audit Viewer</span>
+    <div class="header-right">
+      <span class="role-badge" id="role-badge">User</span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--muted)" id="hdr-addr">—</span>
+      <a href="dashboard.html" class="nav-btn">← Dashboard</a>
+      <a href="admin.html" class="nav-btn" id="admin-link" style="display:none">Admin Panel ↗</a>
+    </div>
+  </header>
+
+  <main>
+
+    <div class="audit-banner">
+      <div class="banner-left">
+        <div class="eyebrow">IdentityManager · Compliance Interface</div>
+        <h1>Audit Viewer</h1>
+        <div class="sub">
+          Immutable forensic trail of all on-chain events.<br>
+          <span id="access-level-text">Filter, inspect, verify, and export for compliance documentation.</span>
+        </div>
+      </div>
+      <div class="banner-right">
+        <div class="stat-box">
+          <div class="stat-num accent" id="stat-total">—</div>
+          <div class="stat-lbl">Total Events</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num accent" id="stat-logins">—</div>
+          <div class="stat-lbl">Logins</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num warn" id="stat-failed">—</div>
+          <div class="stat-lbl">Failed</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num err" id="stat-anomalies">0</div>
+          <div class="stat-lbl">Anomalies</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="mode-bar">
+      <div class="mode-tabs">
+        <button class="mode-tab active" id="tab-history" onclick="switchMode('history')">
+          📋 Historical Search
+        </button>
+        <button class="mode-tab" id="tab-live" onclick="switchMode('live')">
+          <span class="live-dot"></span> Live Stream
+        </button>
+      </div>
+      <div class="mode-right">
+        <button class="export-btn" id="export-csv-btn" onclick="exportCSV()" disabled>
+          ↓ Export CSV
+        </button>
+        <button class="export-btn" id="export-pdf-btn" onclick="exportPrintReport()" disabled>
+          ↓ Export Report
+        </button>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div id="panel-history">
+
+      <!-- FILTER -->
+      <div class="filter-panel">
+        <div class="filter-grid">
+          <div class="filter-field">
+            <label class="filter-label">Actor / Wallet Address</label>
+            <input class="filter-input" type="text" id="f-actor" placeholder="0x… (leave blank for all)">
+          </div>
+          <div class="filter-field">
+            <label class="filter-label">Target Address</label>
+            <input class="filter-input" type="text" id="f-target" placeholder="0x…">
+          </div>
+          <div class="filter-field">
+            <label class="filter-label">Event Type</label>
+            <select class="filter-select" id="f-type">
+              <option value="all">All Events</option>
+              <option value="action-5">Login Success</option>
+              <option value="action-6">Login Failed</option>
+              <option value="action-0">Registration</option>
+              <option value="action-1">Role Changed</option>
+              <option value="action-2">Deactivated</option>
+              <option value="action-3">Reactivated</option>
+              <option value="action-4">Nonce Incremented</option>
+              <option value="login">All Login Attempts</option>
+              <option value="critical-req">Critical Action Req.</option>
+              <option value="critical-app">Critical Action App.</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label class="filter-label">Anomalies Only</label>
+            <select class="filter-select" id="f-anomaly">
+              <option value="all">All Events</option>
+              <option value="anomaly">Anomalies Only</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label class="filter-label">Max Results</label>
+            <select class="filter-select" id="f-limit">
+              <option value="50">50 rows</option>
+              <option value="100" selected>100 rows</option>
+              <option value="250">250 rows</option>
+              <option value="500">500 rows</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-row2">
+          <div class="filter-field">
+            <label class="filter-label">From Date</label>
+            <input class="filter-input" type="date" id="f-from">
+          </div>
+          <div class="filter-field">
+            <label class="filter-label">To Date</label>
+            <input class="filter-input" type="date" id="f-to">
+          </div>
+          <div class="filter-field">
+            <label class="filter-label">From Block</label>
+            <input class="filter-input" type="number" id="f-block-from" placeholder="0" min="0">
+          </div>
+          <div class="filter-field">
+            <label class="filter-label">To Block</label>
+            <input class="filter-input" type="number" id="f-block-to" placeholder="latest" min="0">
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-end">
+            <button class="run-btn" id="run-btn" onclick="runQuery()">
+              Run Query
+            </button>
+            <button class="reset-btn" onclick="resetFilters()">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ANOMALY ALERT -->
+      <div class="anomaly-bar" id="anomaly-bar" style="display:none">
+        <div class="anomaly-icon">⚠️</div>
+        <div style="flex:1">
+          <div class="anomaly-title">Anomalies Detected in Results</div>
+          <div style="font-family:var(--mono);font-size:11px;color:#a03030;margin-bottom:4px">
+            The following patterns were flagged. Click to filter to that wallet.
+          </div>
+          <div class="anomaly-items" id="anomaly-items"></div>
+        </div>
+      </div>
+
+      <!-- RESULTS -->
+      <div class="results-header" id="results-header" style="display:none">
+        <div class="results-meta">
+          <span class="results-count" id="results-count">0 events</span>
+          <span id="results-sub">—</span>
+        </div>
+        <div class="results-actions">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-right:4px">Sort:</span>
+          <button class="sort-btn active" id="sort-desc" onclick="setSortDir('desc')">Newest first</button>
+          <button class="sort-btn" id="sort-asc" onclick="setSortDir('asc')">Oldest first</button>
+        </div>
+      </div>
+
+      <div class="table-wrap" id="results-table-wrap">
+        <div class="table-empty">
+          <span>📋</span>
+          <span>Configure filters above and click <strong>Run Query</strong> to load events.</span>
+          <span class="hint">All queries are read-only and execute against the live blockchain.</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- LIVE STREAM -->
+    <div id="panel-live" style="display:none">
+      <div class="live-panel">
+        <div class="live-header">
+          <div class="live-header-left">
+            <div>
+              <div class="live-header-title">Real-Time Event Stream</div>
+              <div class="live-header-sub">Listening for new on-chain events as they are mined</div>
+            </div>
+            <div class="live-status-pill stopped" id="live-status-pill">
+              ● Stopped
+            </div>
+          </div>
+          <div class="live-controls">
+            <button class="live-toggle" id="live-toggle-btn" onclick="toggleLive()">Start Listening</button>
+            <button class="live-clear" onclick="clearLive()">Clear</button>
+          </div>
+        </div>
+        <div class="live-stream" id="live-stream">
+          <div class="live-empty">
+            <span>📡</span>
+            <span>Click <strong>Start Listening</strong> to monitor live events.</span>
+            <span style="font-size:11px;opacity:0.6">New events will appear here as transactions confirm.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer>
+    <div class="chain-info">
+      <div class="chain-dot" id="chain-dot"></div>
+      <span id="chain-label">No network</span>
+    </div>
+    <div class="footer-center" id="contract-label">Contract: not set</div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">Block <span id="block-num">—</span></div>
+  </footer>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="../js/core.js"></script>
+<script src="../js/events.js"></script>
+<script src="../js/ui.js"></script>
+<script src="../js/audit.js"></script>
+
+</body>
+</html>

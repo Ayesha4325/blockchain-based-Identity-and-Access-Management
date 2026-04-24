@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IdentityManager — Register</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/register.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="5" r="3" stroke="#c8f04d" stroke-width="1.5"/><path d="M1 13c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="#c8f04d" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      IdentityManager
+    </div>
+    <div class="header-right">
+      <a href="login.html" class="nav-link">Sign In →</a>
+      <button class="connect-btn" id="connect-btn" onclick="connectWallet()">
+        <span class="dot"></span>
+        <span id="connect-label">Connect wallet</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <div class="card-wrap">
+      <div class="eyebrow">On-chain identity</div>
+      <h1>Register<br>your <span>wallet</span></h1>
+      <p class="subtitle">Bind your wallet address to a KYC identity hash.<br>One-time registration · No password · Immutable on-chain.</p>
+
+      <div class="card">
+        <div class="wallet-strip">
+          <div class="icon">
+            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="4" width="14" height="10" rx="2" stroke="#c8f04d" stroke-width="1.4"/><path d="M1 7h14" stroke="#c8f04d" stroke-width="1.4"/><circle cx="11.5" cy="10.5" r="1" fill="#c8f04d"/></svg>
+          </div>
+          <div class="info">
+            <div class="label">Connected wallet</div>
+            <div class="addr" id="wallet-addr">Not connected — click "Connect wallet"</div>
+          </div>
+          <div class="status-pill" id="wallet-pill">Offline</div>
+        </div>
+
+        <div class="field">
+          <label>KYC / identity label</label>
+          <input type="text" id="kyc-input" placeholder="e.g. alice-kyc-2025" oninput="onKycInput(this.value)" autocomplete="off">
+        </div>
+
+        <div class="field">
+          <label>Identity hash <small style="text-transform:none;letter-spacing:0">(keccak256 — auto computed)</small></label>
+          <div class="hash-field">
+            <input type="text" id="hash-preview" readonly placeholder="Enter a label above…">
+            <span class="hash-badge" id="hash-badge">—</span>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="note">Your label is hashed client-side. Only the hash is stored on-chain — your raw label stays private.</div>
+
+        <button class="submit-btn" id="reg-btn" onclick="registerUser()" disabled>Register identity ↗</button>
+
+        <div class="result-panel" id="result-panel">
+          <div class="result-header">
+            <div class="result-icon" id="result-icon"></div>
+            <div class="result-title" id="result-title"></div>
+          </div>
+          <div class="result-rows" id="result-rows"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="chain-info">
+      <div class="chain-dot" id="chain-dot"></div>
+      <span id="chain-label">No network</span>
+    </div>
+    <span id="contract-label">Contract: not set</span>
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="../js/register.js"></script>
+
+</body>
+</html>
