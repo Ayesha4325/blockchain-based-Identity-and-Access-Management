@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IdentityManager — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/dashboard.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+</head>
+<body>
+
+<!-- LOADING SCREEN -->
+<div id="loading-screen">
+  <div class="loading-logo">IdentityManager</div>
+  <div class="spinner" style="width:20px;height:20px;border-width:2.5px;color:var(--muted)"></div>
+  <div class="loading-sub">Connecting to wallet…</div>
+</div>
+
+<div class="shell" id="app" style="display:none">
+  <header>
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="5" height="5" rx="1" fill="#f4f1eb"/>
+          <rect x="8" y="1" width="5" height="5" rx="1" fill="#f4f1eb" opacity="0.5"/>
+          <rect x="1" y="8" width="5" height="5" rx="1" fill="#f4f1eb" opacity="0.5"/>
+          <rect x="8" y="8" width="5" height="5" rx="1" fill="#c8f04d"/>
+        </svg>
+      </div>
+      IdentityManager
+    </div>
+    <div class="header-center" id="header-status">
+      <span class="chain-dot" id="hdr-dot"></span>
+      <span id="hdr-network">—</span>
+    </div>
+    <div class="header-right">
+      <a href="login.html" class="nav-btn">← Sign In</a>
+      <a href="audit.html" class="nav-btn">Audit Logs ↗</a>
+      <button class="nav-btn danger" onclick="disconnect()">Disconnect</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="identity-header">
+      <div class="id-left">
+        <div class="id-eyebrow">Authenticated Session</div>
+        <div class="id-wallet" id="id-wallet">Loading…</div>
+        <div class="id-meta">
+          <span class="role-badge user" id="id-role-badge">User</span>
+          <span class="status-dot-wrap">
+            <span class="status-dot active" id="id-status-dot"></span>
+            <span id="id-status-text">Active</span>
+          </span>
+        </div>
+      </div>
+      <div class="id-right">
+        <div class="nonce-display">
+          <div class="nonce-big" id="id-nonce">—</div>
+          <div class="nonce-label">Current Nonce</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="dashboard-grid">
+
+      <!-- SECURITY STATUS BAR -->
+      <div class="card card-security">
+        <div class="card-title">
+          <span><span class="card-title-dot live"></span>Security Status</span>
+          <span id="last-refresh" style="color:var(--muted);font-size:10px">—</span>
+        </div>
+        <div class="security-grid">
+          <div class="sec-item">
+            <div class="sec-item-label">MFA / 2FA</div>
+            <div class="sec-item-val" id="sec-mfa">—</div>
+          </div>
+          <div class="sec-item">
+            <div class="sec-item-label">Last Login</div>
+            <div class="sec-item-val" id="sec-last-login" style="font-size:12px">—</div>
+          </div>
+          <div class="sec-item">
+            <div class="sec-item-label">Session Nonce</div>
+            <div class="sec-item-val" id="sec-nonce">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTIVITY STREAM -->
+      <div class="card card-activity" style="padding-bottom:16px">
+        <div class="card-title">
+          <span><span class="card-title-dot live" id="activity-live-dot"></span>Activity Stream</span>
+          <span style="color:var(--accent2);font-size:10px;cursor:pointer" onclick="loadActivity()">↻ Refresh</span>
+        </div>
+        <div class="activity-list" id="activity-list">
+          <div class="act-empty">Loading events…</div>
+        </div>
+      </div>
+
+      <!-- QUICK ACTIONS -->
+      <div class="card card-actions">
+        <div class="card-title"><span><span class="card-title-dot"></span>Quick Actions</span></div>
+        <div class="actions-list">
+          <button class="action-btn primary" onclick="doIncrementNonce()" id="btn-inc-nonce">
+            <span class="btn-icon">⟳</span>
+            <span class="btn-label">Increment Nonce</span>
+            <span class="btn-arrow">→</span>
+          </button>
+          <button class="action-btn" onclick="openRequestActionModal()" id="btn-req-action" style="display:none">
+            <span class="btn-icon">🔐</span>
+            <span class="btn-label">Request Critical Action</span>
+            <span class="btn-arrow">→</span>
+          </button>
+          <button class="action-btn" onclick="openModal('approve-action')" id="btn-approve" style="display:none">
+            <span class="btn-icon">✓</span>
+            <span class="btn-label">Approve Pending Request</span>
+            <span class="btn-arrow">→</span>
+          </button>
+          <button class="action-btn" onclick="window.location.href='register.html'" style="opacity:0.6">
+            <span class="btn-icon">↗</span>
+            <span class="btn-label">Go to Register</span>
+            <span class="btn-arrow">→</span>
+          </button>
+          <button class="action-btn" onclick="window.location.href='login.html'" style="opacity:0.6">
+            <span class="btn-icon">→</span>
+            <span class="btn-label">Go to Login</span>
+            <span class="btn-arrow">→</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- PENDING APPROVALS -->
+      <div class="card card-approvals">
+        <div class="card-title">
+          <span><span class="card-title-dot" id="approvals-dot"></span>Pending Approvals</span>
+          <span id="approvals-count" style="font-family:var(--mono);font-size:10px;background:var(--border);padding:2px 8px;border-radius:100px">0</span>
+        </div>
+        <div class="approvals-list" id="approvals-list">
+          <div class="ap-empty">No pending approvals</div>
+        </div>
+      </div>
+
+      <!-- MFA CONFIGURATION -->
+      <div class="card card-mfa">
+        <div class="card-title"><span><span class="card-title-dot"></span>MFA Configuration</span></div>
+        <div class="mfa-layout">
+          <div class="mfa-status">
+            <div class="mfa-icon" id="mfa-icon">🔒</div>
+            <div class="mfa-info">
+              <div class="mfa-label">Secondary Wallet</div>
+              <div class="mfa-val" id="mfa-wallet-display">Loading…</div>
+            </div>
+          </div>
+          <div class="mfa-actions">
+            <input class="mfa-input" type="text" id="mfa-input" placeholder="0x secondary wallet address…">
+            <div style="display:flex;gap:8px">
+              <button class="mfa-set-btn" onclick="doSetSecondaryWallet()" id="mfa-set-btn">Set Wallet</button>
+              <button class="mfa-clear-btn" onclick="doClearSecondaryWallet()" id="mfa-clear-btn">Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <div class="chain-info">
+      <div class="chain-dot" id="chain-dot"></div>
+      <span id="chain-label">No network</span>
+    </div>
+    <div class="footer-center" id="contract-label">Contract: not set</div>
+    <div class="footer-right">Block <span id="block-num">—</span></div>
+  </footer>
+
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- Request Critical Action -->
+<div class="modal-overlay" id="modal-request-action">
+  <div class="modal">
+    <div class="modal-title">Request Critical Action</div>
+    <div class="modal-sub">Requires a secondary approver or admin fallback.</div>
+    <div class="modal-field">
+      <label class="modal-label">Action Type</label>
+      <select class="modal-select" id="req-action-type" onchange="onReqActionTypeChange()">
+        <option value="0">Role Change</option>
+        <option value="1">Deactivation</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Target Address</label>
+      <input class="modal-input" type="text" id="req-target" placeholder="0x…">
+    </div>
+    <div class="modal-field" id="req-role-field" style="display:block">
+      <label class="modal-label">New Role</label>
+      <select class="modal-select" id="req-new-role">
+        <option value="1">User</option>
+        <option value="2">Moderator</option>
+        <option value="3">Admin</option>
+      </select>
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal('request-action')">Cancel</button>
+      <button class="modal-submit" id="req-submit-btn" onclick="doRequestCriticalAction()">
+        Submit Request
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Approve via ID -->
+<div class="modal-overlay" id="modal-approve-action">
+  <div class="modal">
+    <div class="modal-title">Approve Critical Action</div>
+    <div class="modal-sub">Enter the approval ID from a pending request.</div>
+    <div class="modal-field">
+      <label class="modal-label">Approval ID (bytes32)</label>
+      <input class="modal-input" type="text" id="approve-id-input" placeholder="0x…">
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal('approve-action')">Cancel</button>
+      <button class="modal-submit" id="approve-submit-btn" onclick="doApproveCriticalAction()">
+        Approve
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/core.js"></script>
+<script src="../js/dashboard.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IdentityManager — Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/admin.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div class="loading-logo">IdentityManager</div>
+  <div class="spinner" style="width:20px;height:20px;border-width:2.5px;color:var(--muted)"></div>
+  <div class="loading-sub" id="loading-msg">Verifying admin access…</div>
+</div>
+
+<div class="shell" id="app" style="display:none">
+  <header>
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="1" y="1" width="5" height="5" rx="1" fill="#f4f1eb"/>
+          <rect x="8" y="1" width="5" height="5" rx="1" fill="#f4f1eb" opacity="0.5"/>
+          <rect x="1" y="8" width="5" height="5" rx="1" fill="#f4f1eb" opacity="0.5"/>
+          <rect x="8" y="8" width="5" height="5" rx="1" fill="#c8f04d"/>
+        </svg>
+      </div>
+      IdentityManager
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="admin-chip">Admin Panel</span>
+      <span class="owner-chip" id="owner-chip" style="display:none">Owner</span>
+    </div>
+    <div class="header-right">
+      <span style="font-family:var(--mono);font-size:11px;color:var(--muted)" id="hdr-addr">—</span>
+      <a href="dashboard.html" class="nav-btn">← Dashboard</a>
+      <a href="audit.html" class="nav-btn">Audit Logs ↗</a>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ADMIN -->
+    <div class="admin-banner">
+      <div class="banner-left">
+        <div class="banner-eyebrow">IdentityManager · Admin Console</div>
+        <div class="banner-title">User Management<br>& Access Control</div>
+        <div class="banner-addr" id="banner-addr">—</div>
+        <div class="banner-meta" id="banner-meta">
+          <span class="role-pill admin">Admin</span>
+        </div>
+      </div>
+      <div class="banner-right">
+        <div class="stat-cluster">
+          <div class="stat-box">
+            <div class="stat-num" id="stat-total">—</div>
+            <div class="stat-lbl">Total Users</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num" id="stat-active">—</div>
+            <div class="stat-lbl">Active</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num" id="stat-admins">—</div>
+            <div class="stat-lbl">Admins</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-num" id="stat-pending">—</div>
+            <div class="stat-lbl">Pending</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('users')" id="tab-users">
+        👥 Users <span class="tab-count" id="tab-users-count">0</span>
+      </button>
+      <button class="tab" onclick="switchTab('approvals')" id="tab-approvals">
+        🔐 Approvals <span class="tab-count" id="tab-approvals-count">0</span>
+      </button>
+      <button class="tab" onclick="switchTab('audit')" id="tab-audit">
+        📋 Audit Log
+      </button>
+      <button class="tab" id="tab-emergency" onclick="switchTab('emergency')" style="display:none">
+        ⚡ Emergency
+      </button>
+    </div>
+
+    <!-- USER REGISTRY -->
+    <div class="panel active" id="panel-users">
+      <div class="section-title">
+        <span>Registered Users</span>
+        <span class="refresh-link" onclick="loadUsers()">↻ Refresh</span>
+      </div>
+      <div class="table-wrap">
+        <div class="table-toolbar">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="user-search" placeholder="Search by address…" oninput="filterUsers()">
+          </div>
+          <div class="filter-pills">
+            <button class="filter-pill active" onclick="setFilter('all', this)">All</button>
+            <button class="filter-pill" onclick="setFilter('active', this)">Active</button>
+            <button class="filter-pill" onclick="setFilter('inactive', this)">Inactive</button>
+            <button class="filter-pill" onclick="setFilter('admin', this)">Admins</button>
+          </div>
+        </div>
+        <div id="user-table-wrap">
+          <div class="table-empty"><span class="spinner"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- APPROVALS -->
+    <div class="panel" id="panel-approvals">
+      <div class="section-title">
+        <span>Pending Critical Action Approvals</span>
+        <span class="refresh-link" onclick="loadApprovals()">↻ Refresh</span>
+      </div>
+      <div class="approvals-grid" id="approvals-grid">
+        <div class="no-approvals"><span class="spinner"></span></div>
+      </div>
+    </div>
+
+    <!-- AUDIT LOGS -->
+    <div class="panel" id="panel-audit">
+      <div class="audit-controls">
+        <div class="audit-field">
+          <label class="audit-label">Wallet Address</label>
+          <input class="audit-input" type="text" id="audit-addr-input" placeholder="0x… (leave blank for all)">
+        </div>
+        <div class="audit-field" style="max-width:160px">
+          <label class="audit-label">Event Type</label>
+          <select class="audit-select" id="audit-type-filter">
+            <option value="all">All Events</option>
+            <option value="5">Login Success</option>
+            <option value="6">Login Failed</option>
+            <option value="0">Registration</option>
+            <option value="1">Role Changed</option>
+            <option value="2">Deactivated</option>
+            <option value="3">Reactivated</option>
+            <option value="4">Nonce Incremented</option>
+          </select>
+        </div>
+        <div class="audit-field" style="max-width:120px">
+          <label class="audit-label">Max Results</label>
+          <select class="audit-select" id="audit-limit">
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+          </select>
+        </div>
+        <button class="audit-btn" onclick="runAuditQuery()" id="audit-run-btn">Run Query</button>
+      </div>
+      <div class="audit-stream">
+        <div class="audit-stream-header">
+          <span id="audit-result-label">Results will appear here</span>
+          <span id="audit-result-count" style="font-size:10px;color:var(--accent2)"></span>
+        </div>
+        <div class="audit-list" id="audit-list">
+          <div class="audit-empty">Enter an address or leave blank to query all events, then click Run Query.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EMERGENCY (for owner only) -->
+    <div class="panel" id="panel-emergency">
+      <div class="emergency-banner">
+        <div class="emergency-icon">⚠️</div>
+        <div>
+          <div class="emergency-title">Owner-Level Emergency Controls</div>
+          <div class="emergency-sub">These actions bypass the 2FA approval workflow. Use with extreme caution. All actions are permanently logged on-chain.</div>
+        </div>
+      </div>
+      <div class="emergency-grid">
+
+        <!-- Direct Role Assignment -->
+        <div class="emergency-card">
+          <span class="owner-only-badge">Owner Only · No 2FA</span>
+          <div class="emergency-card-title">Direct Role Assignment</div>
+          <div class="emergency-card-sub">Immediately assign any role to any registered user. Bypasses the critical action approval queue.</div>
+          <input class="emergency-input" type="text" id="emg-role-addr" placeholder="Target wallet 0x…">
+          <select class="emergency-select" id="emg-role-val">
+            <option value="1">User</option>
+            <option value="2">Moderator</option>
+            <option value="3">Admin</option>
+          </select>
+          <button class="emergency-exec-btn" id="emg-role-btn" onclick="doEmgAssignRole()">⚡ Assign Role Immediately</button>
+        </div>
+
+        <!-- Direct Deactivation -->
+        <div class="emergency-card">
+          <span class="owner-only-badge">Owner Only · No 2FA</span>
+          <div class="emergency-card-title">Force Deactivate / Reactivate</div>
+          <div class="emergency-card-sub">Immediately deactivate or reactivate any user without approval. Use only in security incidents.</div>
+          <input class="emergency-input" type="text" id="emg-deact-addr" placeholder="Target wallet 0x…">
+          <select class="emergency-select" id="emg-deact-action">
+            <option value="deactivate">Deactivate User</option>
+            <option value="reactivate">Reactivate User</option>
+          </select>
+          <button class="emergency-exec-btn" id="emg-deact-btn" onclick="doEmgDeactReact()">⚡ Execute Immediately</button>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <footer>
+    <div class="chain-info">
+      <div class="chain-dot" id="chain-dot"></div>
+      <span id="chain-label">No network</span>
+    </div>
+    <div class="footer-center" id="contract-label">Contract: not set</div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">Block <span id="block-num">—</span></div>
+  </footer>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Assign Role (2FA) -->
+<div class="modal-overlay" id="modal-assign-role">
+  <div class="modal">
+    <div class="modal-title">Assign Role</div>
+    <div class="modal-sub" id="modal-role-sub">Submits a critical action request. An approver must confirm before the role change takes effect.</div>
+    <div class="modal-field">
+      <label class="modal-label">Target User</label>
+      <input class="modal-input" id="modal-role-target" readonly>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">New Role</label>
+      <select class="modal-select" id="modal-role-select">
+        <option value="1">User</option>
+        <option value="2">Moderator</option>
+        <option value="3">Admin</option>
+      </select>
+    </div>
+    <div class="modal-note" id="modal-role-note">
+      As a non-owner admin, this will go through the 2FA approval queue. Another admin or your secondary wallet must approve before assignRole() can execute.
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal('assign-role')">Cancel</button>
+      <button class="modal-submit" id="modal-role-submit" onclick="doAssignRoleFlow()">Request Role Change</button>
+    </div>
+  </div>
+</div>
+
+<!-- Deactivate/Reactivate (2FA) -->
+<div class="modal-overlay" id="modal-deact">
+  <div class="modal">
+    <div class="modal-title" id="modal-deact-title">Deactivate User</div>
+    <div class="modal-sub">Submits a critical action request. Approval is required before this takes effect.</div>
+    <div class="modal-field">
+      <label class="modal-label">Target User</label>
+      <input class="modal-input" id="modal-deact-target" readonly>
+    </div>
+    <div class="modal-note">
+      As a non-owner admin, this will enter the 2FA approval queue. Another admin or your secondary wallet must confirm.
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal('deact')">Cancel</button>
+      <button class="modal-submit" id="modal-deact-submit" onclick="doDeactFlow()">Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/core.js"></script>
+<script src="../js/events.js"></script>
+<script src="../js/ui.js"></script>
+<script src="../js/admin.js"></script>
+
+</body>
+</html>
