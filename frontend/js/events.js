@@ -104,7 +104,7 @@ function normalizeCriticalReq(l) {
     txHash:    l.transactionHash,
     blockNum:  l.blockNumber,
     logIndex:  l.index ?? l.logIndex,
-    timestamp: Number(l.args.expiresAt) * 1000,
+    timestamp: Number(l.args.timestamp) * 1000,
     actor:     l.args.requester,
     target:    l.args.target,
     requester: l.args.requester,

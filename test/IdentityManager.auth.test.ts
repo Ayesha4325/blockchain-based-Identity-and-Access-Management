@@ -1,23 +1,9 @@
-// test/IdentityManager.auth.test.ts
-//
-// Migrated from UserRegistry_auth_test.ts.
-// ✏️  Every change is tagged with ✏️  so diffs are easy to spot.
-//
-// What changed:
-//   1. Contract factory name:  "UserRegistry"  → "IdentityManager"
-//   2. Variable type / import: UserRegistry    → IdentityManager  (typechain)
-//   3. Import path updated accordingly
-//   Everything else — test logic, message format, ECDSA helpers — is unchanged.
-
 import { expect }            from "chai";
 import { ethers }            from "hardhat";
 import { SignerWithAddress }  from "@nomicfoundation/hardhat-ethers/signers";
-import { IdentityManager }   from "../typechain-types"; // ✏️
+import { IdentityManager }   from "../typechain-types"; 
 
-// ---------------------------------------------------------------------------
-// Constants  (identical to original)
-// ---------------------------------------------------------------------------
-
+// Constants
 const Role = { None: 0n, User: 1n, Moderator: 2n, Admin: 3n } as const;
 
 const ActionType = {
@@ -32,13 +18,10 @@ const ActionType = {
 
 const IDENTITY = ethers.keccak256(ethers.toUtf8Bytes("alice-kyc"));
 
-// ---------------------------------------------------------------------------
-// Helpers — IDENTICAL to original; the message format has not changed
-// ---------------------------------------------------------------------------
-
+// Helpers
 async function buildAndSign(
   signer:   SignerWithAddress,
-  registry: IdentityManager, // ✏️
+  registry: IdentityManager, 
   nonce:    bigint,
 ): Promise<string> {
   const chainId      = (await ethers.provider.getNetwork()).chainId;
@@ -57,7 +40,7 @@ async function buildAndSign(
 
 async function debugMessage(
   signer:   SignerWithAddress,
-  registry: IdentityManager, // ✏️
+  registry: IdentityManager, 
   nonce:    bigint,
 ) {
   const chainId      = (await ethers.provider.getNetwork()).chainId;
@@ -84,10 +67,7 @@ async function debugMessage(
   return { testMessage, contractMessage };
 }
 
-// ---------------------------------------------------------------------------
 // Timestamp helper
-// ---------------------------------------------------------------------------
-
 function anyTimestamp() {
   return (val: unknown) =>
     typeof val === "bigint" && val > 0n
@@ -95,12 +75,9 @@ function anyTimestamp() {
       : `expected positive BigInt timestamp, got ${val}`;
 }
 
-// ---------------------------------------------------------------------------
 // Test suite
-// ---------------------------------------------------------------------------
-
-describe("IdentityManager — Wallet-Based Authentication", function () { // ✏️ name
-  let registry: IdentityManager; // ✏️
+describe("IdentityManager — Wallet-Based Authentication", function () {  
+  let registry: IdentityManager; 
   let owner:    SignerWithAddress;
   let alice:    SignerWithAddress;
   let bob:      SignerWithAddress;
@@ -109,17 +86,14 @@ describe("IdentityManager — Wallet-Based Authentication", function () { // ✏
   beforeEach(async function () {
     [owner, alice, bob, stranger] = await ethers.getSigners();
 
-    const Factory = await ethers.getContractFactory("IdentityManager"); // ✏️
-    registry = (await Factory.deploy()) as unknown as IdentityManager;  // ✏️
+    const Factory = await ethers.getContractFactory("IdentityManager"); 
+    registry = (await Factory.deploy()) as unknown as IdentityManager;  
     await registry.waitForDeployment();
 
     await registry.connect(alice).registerUser(IDENTITY);
   });
 
-  // -------------------------------------------------------------------------
   // generateNonce()
-  // -------------------------------------------------------------------------
-
   describe("generateNonce()", function () {
 
     it("returns a non-empty message string for a registered active user", async function () {
@@ -172,10 +146,7 @@ describe("IdentityManager — Wallet-Based Authentication", function () { // ✏
     });
   });
 
-  // -------------------------------------------------------------------------
   // verifySignature() — valid signature
-  // -------------------------------------------------------------------------
-
   describe("verifySignature() — valid signature", function () {
 
     it("returns true for a correctly signed message", async function () {
@@ -224,10 +195,7 @@ describe("IdentityManager — Wallet-Based Authentication", function () { // ✏
     });
   });
 
-  // -------------------------------------------------------------------------
   // Replay attack prevention
-  // -------------------------------------------------------------------------
-
   describe("Replay attack prevention", function () {
 
     it("rejects reuse of the same signature after a successful login", async function () {
@@ -272,10 +240,7 @@ describe("IdentityManager — Wallet-Based Authentication", function () { // ✏
     });
   });
 
-  // -------------------------------------------------------------------------
   // Invalid signature rejection
-  // -------------------------------------------------------------------------
-
   describe("Invalid signature rejection", function () {
 
     it("rejects a signature that is too short", async function () {
@@ -320,8 +285,7 @@ describe("IdentityManager — Wallet-Based Authentication", function () { // ✏
         `Contract: ${contractAddr}\n` +
         `Chain ID: ${chainId}`;
 
-      // ❗ This signs the raw string (not its hash), which will NOT match
-      //    the contract's double-hash approach — correct behaviour to test.
+      // This signs the raw string (not its hash), which will NOT match the contract's double-hash approach — correct behaviour to test.
       const wrongSig = await bob.signMessage(message);
 
       await expect(
@@ -364,10 +328,7 @@ describe("IdentityManager — Wallet-Based Authentication", function () { // ✏
     });
   });
 
-  // -------------------------------------------------------------------------
   // Full round-trip
-  // -------------------------------------------------------------------------
-
   describe("Full round-trip", function () {
 
     it("generateNonce → signMessage → verifySignature succeeds end-to-end", async function () {

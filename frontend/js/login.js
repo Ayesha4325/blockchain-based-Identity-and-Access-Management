@@ -13,6 +13,12 @@ let currentNonce = null;
 let nonceFetched = false;
 let toastTimer;
 
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 // TOAST
 function toast(msg, isErr = false) {
   const el = document.getElementById('toast');
@@ -197,10 +203,10 @@ function showResult(type, icon, title, rows) {
   document.getElementById('result-title').textContent = title;
   document.getElementById('result-rows').innerHTML = rows.map(r => `
     <div class="result-row">
-      <div class="result-row-label">${r.label}</div>
+      <div class="result-row-label">${escapeHtml(r.label)}</div>
       ${r.link
-        ? `<a class="tx-link" href="${r.link}" target="\_blank">${r.val.slice(0, 20)}…${r.val.slice(-12)} ↗</a>`
-        : `<div class="result-row-val">${r.val}</div>`}
+        ? `<a class="tx-link" href="${escapeHtml(r.link)}" target="\_blank">${escapeHtml(r.val.slice(0, 20))}…${escapeHtml(r.val.slice(-12))} ↗</a>`
+        : `<div class="result-row-val">${escapeHtml(r.val)}</div>`}
     </div>
   `).join('');
   panel.className    = 'result-panel ' + type;

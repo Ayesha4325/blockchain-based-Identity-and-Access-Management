@@ -1,26 +1,10 @@
-// test/IdentityManager.2fa.test.ts
-//
-// Tests for the second-factor (2FA) critical-action flow added to IdentityManager.
-// Covers:
-//   • requestCriticalAction()
-//   • approveCriticalAction()
-//   • setSecondaryWallet() / getSecondaryWallet()
-//   • assignRole()    with 2FA gate (non-owner admin path)
-//   • deactivateUser() with 2FA gate (non-owner admin path)
-//   • Owner bypass (no 2FA required)
-//   • TTL expiry
-//   • Replay / double-approval prevention
-
 import { expect }           from "chai";
 import { ethers }           from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 import { IdentityManager }  from "../typechain-types";
 import { time }             from "@nomicfoundation/hardhat-network-helpers";
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
-
 const Role = { None: 0n, User: 1n, Moderator: 2n, Admin: 3n } as const;
 
 const CriticalAction = {
@@ -36,13 +20,10 @@ function roleChangeData(newRole: bigint): string {
 }
 
 function deactivationData(targetAddr: string): string {
-    return ethers.zeroPadValue(targetAddr.toLowerCase(), 32);
+    return ethers.zeroPadValue(targetAddr, 32);
 }
 
-// ---------------------------------------------------------------------------
 // Fixture
-// ---------------------------------------------------------------------------
-
 describe("IdentityManager — Second-Factor (2FA)", function () {
     let registry:  IdentityManager;
     let owner:     SignerWithAddress;   // contract owner — bypasses 2FA
@@ -76,10 +57,7 @@ describe("IdentityManager — Second-Factor (2FA)", function () {
         await registry.connect(owner).assignRole(adminB.address, Role.Admin);
     });
 
-    // -------------------------------------------------------------------------
     // setSecondaryWallet()
-    // -------------------------------------------------------------------------
-
     describe("setSecondaryWallet()", function () {
 
         it("registers a secondary wallet and emits SecondaryWalletSet", async function () {
@@ -116,11 +94,8 @@ describe("IdentityManager — Second-Factor (2FA)", function () {
             ).to.be.revertedWithCustomError(registry, "NotRegistered");
         });
     });
-
-    // -------------------------------------------------------------------------
+  
     // requestCriticalAction()
-    // -------------------------------------------------------------------------
-
     describe("requestCriticalAction()", function () {
 
         it("emits CriticalActionRequested with correct fields", async function () {
@@ -185,10 +160,7 @@ describe("IdentityManager — Second-Factor (2FA)", function () {
         });
     });
 
-    // -------------------------------------------------------------------------
     // approveCriticalAction() — admin fallback path (no secondary wallet)
-    // -------------------------------------------------------------------------
-
     describe("approveCriticalAction() — admin fallback", function () {
         let approvalId: string;
 
@@ -248,10 +220,7 @@ describe("IdentityManager — Second-Factor (2FA)", function () {
         });
     });
 
-    // -------------------------------------------------------------------------
     // approveCriticalAction() — secondary wallet path
-    // -------------------------------------------------------------------------
-
     describe("approveCriticalAction() — secondary wallet path", function () {
         let approvalId: string;
 
@@ -289,10 +258,7 @@ describe("IdentityManager — Second-Factor (2FA)", function () {
         });
     });
 
-    // -------------------------------------------------------------------------
     // Full 2FA flow — assignRole (non-owner admin)
-    // -------------------------------------------------------------------------
-
     describe("assignRole() — full 2FA flow (non-owner admin)", function () {
 
         it("non-owner admin can promote a user after approval", async function () {
@@ -343,19 +309,14 @@ describe("IdentityManager — Second-Factor (2FA)", function () {
             // First call succeeds and consumes the approval
             await registry.connect(adminA).assignRole(alice.address, Role.Moderator);
 
-            // Second call for the same action must fail — approval was deleted
-            // (Also role is the same now, so SameRoleAssigned fires first — either
-            //  revert proves the approval can't be re-used)
+            // Second call for the same action must fail
             await expect(
                 registry.connect(adminA).assignRole(alice.address, Role.Moderator)
             ).to.be.reverted;
         });
     });
 
-    // -------------------------------------------------------------------------
     // Full 2FA flow — deactivateUser (non-owner admin)
-    // -------------------------------------------------------------------------
-
     describe("deactivateUser() — full 2FA flow (non-owner admin)", function () {
 
         it("non-owner admin can deactivate after approval", async function () {
@@ -401,11 +362,8 @@ describe("IdentityManager — Second-Factor (2FA)", function () {
             ).to.be.revertedWithCustomError(registry, "ApprovalExpired");
         });
     });
-
-    // -------------------------------------------------------------------------
+  
     // Owner bypass — no 2FA required
-    // -------------------------------------------------------------------------
-
     describe("Owner bypass", function () {
 
         it("owner can assignRole directly without requestCriticalAction", async function () {

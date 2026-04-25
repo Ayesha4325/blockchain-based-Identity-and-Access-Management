@@ -1,23 +1,9 @@
-// test/IdentityManager.test.ts
-//
-// Migrated from UserRegistry_test.ts.
-// ✏️  Every change is tagged with ✏️  so diffs are easy to spot.
-//
-// What changed:
-//   1. Contract factory name:  "UserRegistry"  → "IdentityManager"
-//   2. Variable type / import: UserRegistry    → IdentityManager  (typechain)
-//   3. Import path updated accordingly
-//   Everything else — test logic, assertions, helpers — is unchanged.
-
 import { expect }            from "chai";
 import { ethers }            from "hardhat";
 import { SignerWithAddress }  from "@nomicfoundation/hardhat-ethers/signers";
-import { IdentityManager }   from "../typechain-types"; // ✏️
+import { IdentityManager }   from "../typechain-types"; 
 
-// ---------------------------------------------------------------------------
-// Constants  (identical to original)
-// ---------------------------------------------------------------------------
-
+// Constants
 const Role = { None: 0n, User: 1n, Moderator: 2n, Admin: 3n } as const;
 
 const ActionType = {
@@ -33,10 +19,7 @@ const ActionType = {
 const IDENTITY      = ethers.keccak256(ethers.toUtf8Bytes("alice-kyc"));
 const BOB_IDENTITY  = ethers.keccak256(ethers.toUtf8Bytes("bob-kyc"));
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
-
 function anyTimestamp() {
   return (val: unknown) =>
     typeof val === "bigint" && val > 0n
@@ -44,12 +27,9 @@ function anyTimestamp() {
       : `expected positive BigInt timestamp, got ${val}`;
 }
 
-// ---------------------------------------------------------------------------
 // Fixture
-// ---------------------------------------------------------------------------
-
 describe("IdentityManager — Core Registry", function () {
-  let registry: IdentityManager; // ✏️
+  let registry: IdentityManager; 
   let owner:    SignerWithAddress;
   let alice:    SignerWithAddress;
   let bob:      SignerWithAddress;
@@ -58,16 +38,13 @@ describe("IdentityManager — Core Registry", function () {
   beforeEach(async function () {
     [owner, alice, bob, stranger] = await ethers.getSigners();
 
-    // ✏️  Factory name changed
+    // Factory name changed
     const Factory = await ethers.getContractFactory("IdentityManager");
-    registry = (await Factory.deploy()) as unknown as IdentityManager; // ✏️
+    registry = (await Factory.deploy()) as unknown as IdentityManager; 
     await registry.waitForDeployment();
   });
 
-  // -------------------------------------------------------------------------
   // Deployment
-  // -------------------------------------------------------------------------
-
   describe("Deployment", function () {
 
     it("registers the deployer as Admin on construction", async function () {
@@ -83,17 +60,14 @@ describe("IdentityManager — Core Registry", function () {
 
     it("emits UserRegistered for the deployer on deploy", async function () {
       // Re-deploy so we can capture the constructor event
-      const Factory  = await ethers.getContractFactory("IdentityManager"); // ✏️
+      const Factory  = await ethers.getContractFactory("IdentityManager"); 
       const freshReg = await Factory.deploy();
       await expect(freshReg.deploymentTransaction())
         .to.emit(freshReg, "UserRegistered");
     });
   });
 
-  // -------------------------------------------------------------------------
   // registerUser()
-  // -------------------------------------------------------------------------
-
   describe("registerUser()", function () {
 
     it("registers a new user with Role.User", async function () {
@@ -130,10 +104,7 @@ describe("IdentityManager — Core Registry", function () {
     });
   });
 
-  // -------------------------------------------------------------------------
   // assignRole()
-  // -------------------------------------------------------------------------
-
   describe("assignRole()", function () {
 
     beforeEach(async function () {
@@ -192,10 +163,7 @@ describe("IdentityManager — Core Registry", function () {
     });
   });
 
-  // -------------------------------------------------------------------------
   // deactivateUser()
-  // -------------------------------------------------------------------------
-
   describe("deactivateUser()", function () {
 
     beforeEach(async function () {
@@ -244,10 +212,7 @@ describe("IdentityManager — Core Registry", function () {
     });
   });
 
-  // -------------------------------------------------------------------------
   // reactivateUser()
-  // -------------------------------------------------------------------------
-
   describe("reactivateUser()", function () {
 
     beforeEach(async function () {
@@ -280,10 +245,7 @@ describe("IdentityManager — Core Registry", function () {
     });
   });
 
-  // -------------------------------------------------------------------------
   // incrementNonce()
-  // -------------------------------------------------------------------------
-
   describe("incrementNonce()", function () {
 
     beforeEach(async function () {
@@ -319,10 +281,7 @@ describe("IdentityManager — Core Registry", function () {
     });
   });
 
-  // -------------------------------------------------------------------------
   // View helpers
-  // -------------------------------------------------------------------------
-
   describe("View helpers", function () {
 
     beforeEach(async function () {

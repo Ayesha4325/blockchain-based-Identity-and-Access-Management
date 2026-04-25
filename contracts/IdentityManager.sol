@@ -63,6 +63,7 @@ contract IdentityManager is AccessController {
         external
         onlyAdmin
         userExists(_user)
+        requiresApproval(_buildApprovalId(msg.sender, _user, CriticalAction.RoleChange, bytes32(uint256(_newRole))))
         returns (bool)
     {
         if (_user == address(0))   revert ZeroAddress();
@@ -71,16 +72,6 @@ contract IdentityManager is AccessController {
         if (oldRole == _newRole)   revert SameRoleAssigned();
         if (_user == owner && _newRole != Role.Admin)      revert CannotDowngradeOwner();
         if (_newRole == Role.Admin && msg.sender != owner) revert UnauthorizedRoleChange();
-
-        if (msg.sender != owner) {
-            bytes32 actionData = bytes32(uint256(_newRole));
-            bytes32 approvalId = _buildApprovalId(msg.sender, _user, CriticalAction.RoleChange, actionData);
-            ApprovalRequest storage req = _getApproval(approvalId);
-            if (!req.exists)     revert ApprovalNotFound(approvalId);
-            if (!req.isApproved) revert ApprovalRequired(approvalId);
-            if (block.timestamp > req.requestedAt + APPROVAL_TTL) revert ApprovalExpired(approvalId);
-            _deleteApproval(approvalId);
-        }
         _setRole(_user, _newRole);
         emit RoleChanged(_user, oldRole, _newRole, msg.sender, block.timestamp);
         _logAction(msg.sender, _user, ActionType.RoleChanged, _getNonce(_user));
@@ -93,6 +84,7 @@ contract IdentityManager is AccessController {
         onlyModeratorOrAbove
         userExists(_user)
         onlyActiveUser(_user)
+        requiresApproval(_buildApprovalId(msg.sender, _user, CriticalAction.Deactivation, bytes32(uint256(uint160(_user)))))
         returns (bool)
     {
         if (_user == msg.sender) revert CannotSelfDeactivate();
@@ -100,16 +92,6 @@ contract IdentityManager is AccessController {
         Role callerRole = _getRole(msg.sender);
         Role targetRole = _getRole(_user);
         if (callerRole == Role.Moderator && targetRole == Role.Admin) revert NotAdmin();
-
-        if (msg.sender != owner) {
-            bytes32 actionData = bytes32(uint256(uint160(_user)));
-            bytes32 approvalId = _buildApprovalId(msg.sender, _user, CriticalAction.Deactivation, actionData);
-            ApprovalRequest storage req = _getApproval(approvalId);
-            if (!req.exists)     revert ApprovalNotFound(approvalId);
-            if (!req.isApproved) revert ApprovalRequired(approvalId);
-            if (block.timestamp > req.requestedAt + APPROVAL_TTL) revert ApprovalExpired(approvalId);
-            _deleteApproval(approvalId);
-        }
         _setActive(_user, false);
         emit UserDeactivated(_user, msg.sender, block.timestamp);
         _logAction(msg.sender, _user, ActionType.Deactivated, _getNonce(_user));
