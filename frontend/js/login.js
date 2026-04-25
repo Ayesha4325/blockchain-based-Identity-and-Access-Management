@@ -153,8 +153,7 @@ async function signIn() {
       `Contract: ${addr.toLowerCase()}\n` +
       `Chain ID: ${chainId}`;
 
-    const msgHash = ethers.keccak256(ethers.toUtf8Bytes(message));
-    const sig     = await signer.signMessage(ethers.getBytes(msgHash));
+    const sig = await signer.signMessage(message);
 
     btn.innerHTML = '<span class="spinner"></span> Verifying on-chain…';
     toast('Transaction submitted — waiting for confirmation…');

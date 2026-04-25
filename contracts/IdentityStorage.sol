@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.24;
 
 // Pure storage layer for user data and 2FA requests
 abstract contract IdentityStorage {
@@ -42,7 +42,8 @@ abstract contract IdentityStorage {
     }
 
     uint256 internal constant APPROVAL_TTL = 1 hours;
-    address public immutable owner;
+    address public owner;
+    address public pendingOwner;
     mapping(address => User) private _users;
     mapping(bytes32 => ApprovalRequest) internal _approvals;
     mapping(address => address) internal _secondaryWallets;

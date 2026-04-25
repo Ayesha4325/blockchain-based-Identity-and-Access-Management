@@ -31,11 +31,14 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function loadAll() {
+  const activityLogs = await contract.queryFilter(
+    contract.filters.ActionLogged(null, userAddress)
+  );
   await Promise.all([
     loadIdentityHeader(),
-    loadSecurityBar(),
+    loadSecurityBar(activityLogs),
     loadMfaCard(),
-    loadActivity(),
+    loadActivity(activityLogs),
     loadPendingApprovals(),
   ]);
   updateTimestamp();
@@ -81,7 +84,7 @@ async function loadIdentityHeader() {
 }
 
 // SECURITY STATUS BAR
-async function loadSecurityBar() {
+async function loadSecurityBar(logs) {
   try {
     const secondary = await contract.getSecondaryWallet(userAddress);
     const hasMfa    = secondary && secondary !== ethers.ZeroAddress;
@@ -91,7 +94,6 @@ async function loadSecurityBar() {
     mfaEl.className   = 'sec-item-val ' + (hasMfa ? 'ok' : 'warn');
 
     const filter = contract.filters.ActionLogged(null, userAddress);
-    const logs   = await contract.queryFilter(filter);
     const logins = logs
       .filter(l => l.args && Number(l.args.action) === 5)
       .sort((a, b) => Number(b.args.timestamp) - Number(a.args.timestamp));
@@ -117,11 +119,10 @@ async function loadSecurityBar() {
 }
 
 // ACTIVITY STREAM
-async function loadActivity() {
+async function loadActivity(logs) {
   const listEl = document.getElementById('activity-list');
   listEl.innerHTML = '<div class="act-empty"><span class="spinner"></span></div>';
   try {
-    const logs = await contract.queryFilter(contract.filters.ActionLogged(null, userAddress));
     const sorted = logs
       .filter(l => l.args)
       .sort((a, b) => Number(b.args.timestamp) - Number(a.args.timestamp))
@@ -158,8 +159,8 @@ async function loadPendingApprovals() {
   const dotEl   = document.getElementById('approvals-dot');
 
   try {
-    const reqLogs     = await contract.queryFilter(contract.filters.CriticalActionRequested());
-    const appLogs     = await contract.queryFilter(contract.filters.CriticalActionApproved());
+    const reqLogs     = await queryFilterChunked(contract.filters.CriticalActionRequested());
+    const appLogs     = await queryFilterChunked(contract.filters.CriticalActionApproved());
     const approvedIds = new Set(appLogs.map(l => l.args.approvalId));
 
     const secondary = await contract.getSecondaryWallet(userAddress);

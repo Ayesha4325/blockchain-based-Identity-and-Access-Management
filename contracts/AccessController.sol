@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.24;
 
 import "./AuditLogger.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 contract AccessController is AuditLogger {
 
@@ -91,25 +93,13 @@ contract AccessController is AuditLogger {
 
     // Recovers signer from signature and validates against sender
     function _verifyLogin(bytes calldata _signature) internal returns (uint256 consumedNonce) {
-        if (_signature.length != 65) revert InvalidSignatureLength();
         consumedNonce = _getNonce(msg.sender);
         string memory message = _buildMessage(msg.sender, consumedNonce);
-        bytes32 msgHash      = keccak256(bytes(message));
-        bytes32 prefixedHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", msgHash));
-        bytes32 r;
-        bytes32 s;
-        uint8   v;
-        bytes memory sig = _signature;
-        assembly {
-            r := mload(add(sig, 32))
-            s := mload(add(sig, 64))
-            v := byte(0, mload(add(sig, 96)))
-        }
-        if (v < 27) v += 27;
-        address recovered = ecrecover(prefixedHash, v, r, s);
-        if (recovered == address(0) || recovered != msg.sender) {
-            emit LoginAttempt(msg.sender, false, consumedNonce, block.timestamp);
-            emit ActionLogged(msg.sender, msg.sender, ActionType.LoginFailed, consumedNonce, block.timestamp);
+        bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(bytes(message));
+        address recovered = ECDSA.recover(ethSignedHash, _signature);
+        if (recovered != msg.sender) {
+            _logLogin(msg.sender, false, consumedNonce);
+            _logAction(msg.sender, msg.sender, ActionType.LoginFailed, consumedNonce);
             revert InvalidSignature();
         }
     }
@@ -150,6 +140,17 @@ contract AccessController is AuditLogger {
         _markApproved(approvalId);
         _logCriticalApproval(approvalId, msg.sender);
         _logAction(msg.sender, req.target, ActionType.CriticalApproved, _getNonce(req.target));
+    }
+
+    function transferOwnership(address _newOwner) external onlyOwner {
+        require(_newOwner != address(0), "AC: zero address");
+        pendingOwner = _newOwner;
+    }
+
+    function acceptOwnership() external {
+        require(msg.sender == pendingOwner, "AC: not pending owner");
+        owner = pendingOwner;
+        pendingOwner = address(0);
     }
 
     function _uint2str(uint256 value) internal pure returns (string memory) {

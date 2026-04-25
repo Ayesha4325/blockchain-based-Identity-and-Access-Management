@@ -16,6 +16,11 @@ const ActionType = {
   LoginFailed:      6n,
 } as const;
 
+const CriticalAction = {
+  RoleChange: 0,
+  Deactivation: 1,
+} as const;
+
 const IDENTITY      = ethers.keccak256(ethers.toUtf8Bytes("alice-kyc"));
 const BOB_IDENTITY  = ethers.keccak256(ethers.toUtf8Bytes("bob-kyc"));
 
@@ -154,9 +159,28 @@ describe("IdentityManager — Core Registry", function () {
     });
 
     it("only the owner can promote to Admin (non-owner admin cannot)", async function () {
-      // Make alice an admin first
+      // Make alice an admin first (owner bypasses 2FA)
       await registry.connect(owner).assignRole(alice.address, Role.Admin);
-      // alice should NOT be able to promote bob to Admin
+
+      // Alice (admin, not owner) must request 2FA approval for role change
+      const actionData = ethers.zeroPadValue(ethers.toBeHex(ethers.toBigInt(Role.Admin)), 32);
+      const approvalId = await registry.connect(alice).requestCriticalAction.staticCall(
+        bob.address,
+        CriticalAction.RoleChange,  // number type
+        actionData
+      );
+      
+      // Now actually send the transaction
+      await registry.connect(alice).requestCriticalAction(
+        bob.address,
+        CriticalAction.RoleChange,
+        actionData
+      );
+
+      // Owner approves the request (admin fallback approver)
+      await registry.connect(owner).approveCriticalAction(approvalId);
+
+      // Now alice tries to promote bob to Admin — should fail with UnauthorizedRoleChange
       await expect(
         registry.connect(alice).assignRole(bob.address, Role.Admin),
       ).to.be.revertedWithCustomError(registry, "UnauthorizedRoleChange");
@@ -182,11 +206,18 @@ describe("IdentityManager — Core Registry", function () {
         .withArgs(alice.address, owner.address, anyTimestamp());
     });
 
-    it("moderator cannot deactivate an admin", async function () {
+    it("moderator cannot request critical action (NotAdmin)", async function () {
       await registry.connect(owner).assignRole(alice.address, Role.Moderator);
       await registry.connect(owner).assignRole(bob.address, Role.Admin);
+
+      const actionData = ethers.zeroPadValue(ethers.toBeHex(ethers.toBigInt(ethers.getAddress(bob.address))), 32);
+      
       await expect(
-        registry.connect(alice).deactivateUser(bob.address),
+        registry.connect(alice).requestCriticalAction(
+          bob.address,
+          CriticalAction.Deactivation,
+          actionData
+        ),
       ).to.be.revertedWithCustomError(registry, "NotAdmin");
     });
 
@@ -199,6 +230,25 @@ describe("IdentityManager — Core Registry", function () {
     it("reverts CannotDeactivateOwner", async function () {
       // Must use a different admin account
       await registry.connect(owner).assignRole(alice.address, Role.Admin);
+
+      // Alice (admin) must request 2FA approval for deactivation
+      const actionData = ethers.zeroPadValue(ethers.toBeHex(ethers.toBigInt(ethers.getAddress(owner.address))), 32);
+      const approvalId = await registry.connect(alice).requestCriticalAction.staticCall(
+        owner.address,
+        CriticalAction.Deactivation,
+        actionData
+      );
+      
+      await registry.connect(alice).requestCriticalAction(
+        owner.address,
+        CriticalAction.Deactivation,
+        actionData
+      );
+
+      // Owner approves the request
+      await registry.connect(owner).approveCriticalAction(approvalId);
+
+      // Now alice tries to deactivate owner — should fail with CannotDeactivateOwner
       await expect(
         registry.connect(alice).deactivateUser(owner.address),
       ).to.be.revertedWithCustomError(registry, "CannotDeactivateOwner");

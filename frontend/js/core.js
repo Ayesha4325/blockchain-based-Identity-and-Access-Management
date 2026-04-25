@@ -116,6 +116,17 @@ async function connectWallet() {
   }
 }
 
+async function queryFilterChunked(filter, chunkSize = 2000) {
+  const latest = await provider.getBlockNumber();
+  const results = [];
+  for (let from = 0; from <= latest; from += chunkSize) {
+    const to = Math.min(from + chunkSize - 1, latest);
+    const logs = await contract.queryFilter(filter, from, to);
+    results.push(...logs);
+  }
+  return results;
+}
+
 // Initialize with access check 
 async function initWithCheck(requiredRole = 0, requireRegistered = false) {
   const ok = await connectWallet();

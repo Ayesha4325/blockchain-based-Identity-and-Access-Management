@@ -21,21 +21,18 @@ const IDENTITY = ethers.keccak256(ethers.toUtf8Bytes("alice-kyc"));
 // Helpers
 async function buildAndSign(
   signer:   SignerWithAddress,
-  registry: IdentityManager, 
+  registry: IdentityManager,
   nonce:    bigint,
 ): Promise<string> {
   const chainId      = (await ethers.provider.getNetwork()).chainId;
-  const contractAddr = await registry.getAddress();
-
+  const contractAddr = (await registry.getAddress()).toLowerCase();
   const message =
     `Sign in to UserRegistry\n` +
     `Wallet: ${signer.address.toLowerCase()}\n` +
     `Nonce: ${nonce}\n` +
-    `Contract: ${contractAddr.toLowerCase()}\n` +
+    `Contract: ${contractAddr}\n` +
     `Chain ID: ${chainId}`;
-
-  const messageHash = ethers.keccak256(ethers.toUtf8Bytes(message));
-  return signer.signMessage(ethers.getBytes(messageHash));
+  return signer.signMessage(message);
 }
 
 async function debugMessage(
@@ -247,21 +244,21 @@ describe("IdentityManager — Wallet-Based Authentication", function () {
       const shortSig = "0x" + "aa".repeat(64);
       await expect(
         registry.connect(alice).verifySignature(shortSig),
-      ).to.be.revertedWithCustomError(registry, "InvalidSignatureLength");
+      ).to.be.revertedWithCustomError(registry, "ECDSAInvalidSignatureLength");
     });
 
     it("rejects a signature that is too long", async function () {
       const longSig = "0x" + "aa".repeat(66);
       await expect(
         registry.connect(alice).verifySignature(longSig),
-      ).to.be.revertedWithCustomError(registry, "InvalidSignatureLength");
+      ).to.be.revertedWithCustomError(registry, "ECDSAInvalidSignatureLength");
     });
 
     it("rejects a zeroed-out 65-byte signature", async function () {
       const zeroSig = "0x" + "00".repeat(65);
       await expect(
         registry.connect(alice).verifySignature(zeroSig),
-      ).to.be.revertedWithCustomError(registry, "InvalidSignature");
+      ).to.be.revertedWithCustomError(registry, "ECDSAInvalidSignature");
     });
 
     it("rejects a signature where only one byte is corrupted", async function () {
@@ -285,7 +282,6 @@ describe("IdentityManager — Wallet-Based Authentication", function () {
         `Contract: ${contractAddr}\n` +
         `Chain ID: ${chainId}`;
 
-      // This signs the raw string (not its hash), which will NOT match the contract's double-hash approach — correct behaviour to test.
       const wrongSig = await bob.signMessage(message);
 
       await expect(

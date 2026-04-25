@@ -361,6 +361,22 @@ describe("IdentityManager — Second-Factor (2FA)", function () {
                 registry.connect(adminA).deactivateUser(alice.address)
             ).to.be.revertedWithCustomError(registry, "ApprovalExpired");
         });
+        it('should revert when admin tries to 2FA-deactivate the owner', async () => {
+            const actionData = deactivationData(owner.address);
+
+            await registry.connect(adminA).requestCriticalAction(
+                owner.address, CriticalAction.Deactivation, actionData
+            );
+
+            const approvalId = await registry.buildApprovalId(
+                adminA.address, owner.address, CriticalAction.Deactivation, actionData
+            );
+            await registry.connect(adminB).approveCriticalAction(approvalId);
+
+            await expect(
+                registry.connect(adminA).deactivateUser(owner.address)
+            ).to.be.revertedWithCustomError(registry, 'CannotDeactivateOwner');
+        });
     });
   
     // Owner bypass — no 2FA required

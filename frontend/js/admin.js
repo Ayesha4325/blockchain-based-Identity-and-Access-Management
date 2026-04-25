@@ -50,7 +50,7 @@ async function loadUsers() {
 
   try {
     const regFilter = contract.filters.UserRegistered();
-    const regLogs = await contract.queryFilter(regFilter);
+    const regLogs = await queryFilterChunked(regFilter);
     const addresses = [...new Set(regLogs.map(l => l.args.wallet))];
 
     const details = await Promise.all(addresses.map(async addr => {
@@ -159,9 +159,9 @@ async function loadApprovals() {
 
   try {
     const reqFilter = contract.filters.CriticalActionRequested();
-    const reqLogs = await contract.queryFilter(reqFilter);
+    const reqLogs = await queryFilterChunked(reqFilter);
     const appFilter = contract.filters.CriticalActionApproved();
-    const appLogs = await contract.queryFilter(appFilter);
+    const appLogs = await queryFilterChunked(appFilter);
     const approvedIds = new Set(appLogs.map(l => l.args.approvalId));
 
     const results = [];
@@ -256,7 +256,7 @@ async function runAuditQuery() {
 
   try {
     let filter = addrRaw ? contract.filters.ActionLogged(null, addrRaw) : contract.filters.ActionLogged();
-    let logs = await contract.queryFilter(filter);
+    let logs = await queryFilterChunked(filter);
 
     if (typeVal !== 'all') {
       const t = parseInt(typeVal);
