@@ -8,6 +8,8 @@ let userRole = 0;
 let blockPollInterval;
 let toastTimer;
 
+const EXPIRY = 3600;
+
 // Role Maps 
 const RoleName  = { 0:'None', 1:'User', 2:'Moderator', 3:'Admin' };
 const RoleClass = { 0:'none', 1:'user', 2:'moderator', 3:'admin' };
@@ -49,7 +51,7 @@ const COMMON_ABI = [
   "function requestCriticalAction(address target, uint8 actionType, bytes32 actionData) external returns (bytes32)",
   "function approveCriticalAction(bytes32 approvalId) external",
   "function buildApprovalId(address requester, address target, uint8 actionType, bytes32 actionData) external view returns (bytes32)",
-  "function getApprovalRequest(bytes32 approvalId) external view returns (tuple(bool exists, bool isApproved, address requester, address target, uint8 actionType, bytes32 actionData, uint256 requestedAt, uint256 approvedAt, address approver))",
+  "function getApprovalRequest(bytes32 approvalId) external view returns (tuple(address requester, address target, uint8 action, bytes32 actionData, bool isApproved, bool exists, uint256 requestedAt))",
   "function getSecondaryWallet(address wallet) external view returns (address)",
   "function setSecondaryWallet(address secondary) external",
   "function incrementNonce() external returns (uint256)",
@@ -62,7 +64,7 @@ const COMMON_ABI = [
   "event RoleChanged(address indexed user, uint8 oldRole, uint8 newRole, address indexed actor, uint256 timestamp)",
   "event UserDeactivated(address indexed user, address indexed actor, uint256 timestamp)",
   "event UserReactivated(address indexed user, address indexed actor, uint256 timestamp)",
-  "event CriticalActionRequested(bytes32 indexed approvalId, address indexed requester, address indexed target, uint8 actionType, uint256 expiresAt)",
+  "event CriticalActionRequested(bytes32 indexed approvalId, address indexed requester, address indexed target, uint8 action, bytes32 actionData, uint256 expiresAt, uint256 timestamp)",
   "event CriticalActionApproved(bytes32 indexed approvalId, address indexed approver, uint256 timestamp)",
   "event SecondaryWalletSet(address indexed primary, address indexed secondary, uint256 timestamp)"
 ];
@@ -121,8 +123,13 @@ async function queryFilterChunked(filter, chunkSize = 2000) {
   const results = [];
   for (let from = 0; from <= latest; from += chunkSize) {
     const to = Math.min(from + chunkSize - 1, latest);
-    const logs = await contract.queryFilter(filter, from, to);
-    results.push(...logs);
+    try {
+      const logs = await contract.queryFilter(filter, from, to);
+      results.push(...logs);
+    } catch (e) {
+      console.warn(`Chunk ${from}-${to} failed, skipping:`, e);
+      toast(`Warning: some events in blocks ${from}-${to} may be missing`, 'warn');
+    }
   }
   return results;
 }

@@ -171,7 +171,10 @@ async function loadApprovals() {
       const expired = Date.now() > expiresAt;
       let isApproved = approvedIds.has(id);
       let req = null;
-      try { req = await contract.getApprovalRequest(id); if (req.exists) isApproved = req.isApproved; }
+      try { req = await contract.getApprovalRequest(id);
+        if (Date.now() / 1000 > Number(req.requestedAt) + EXPIRY) {
+          toast('Request expired', 'err'); continue;
+        } if (req.exists) isApproved = req.isApproved; }
       catch(e) {}
       results.push({ id, req, log, expiresAt, expired, isApproved });
     }

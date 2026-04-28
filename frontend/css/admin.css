@@ -34,6 +34,8 @@
 }
 .stat-num { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; color: var(--accent); line-height: 1; }
 .stat-lbl { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(244,241,235,0.35); margin-top: 4px; }
+.panel { display: none; }
+.panel.active { display: block; }
 
 /* USER REGISTRY TABLE */
 .you-tag { font-family: var(--mono); font-size: 9px; color: var(--accent2); background: #eeeeff; padding: 2px 6px; border-radius: 100px; margin-left: 4px; }

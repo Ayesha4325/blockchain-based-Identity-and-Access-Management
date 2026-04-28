@@ -14,6 +14,7 @@ function switchMode(mode) {
     toast('Live stream is admin-only', 'err');
     return;
   }
+  if (mode === 'history' && liveActive) stopLive();
   const tabHistory = document.getElementById('tab-history');
   const tabLive = document.getElementById('tab-live');
   const panelHistory = document.getElementById('panel-history');

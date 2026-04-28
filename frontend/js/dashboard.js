@@ -31,9 +31,15 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function loadAll() {
-  const activityLogs = await contract.queryFilter(
-    contract.filters.ActionLogged(null, userAddress)
-  );
+  const [asActor, asTarget] = await Promise.all([
+    contract.queryFilter(contract.filters.ActionLogged(userAddress, null)),
+    contract.queryFilter(contract.filters.ActionLogged(null, userAddress)),
+  ]);
+  const seen = new Set();
+  const activityLogs = [...asActor, ...asTarget].filter(l => {
+    const k = l.transactionHash + '_' + l.index;
+    return seen.has(k) ? false : (seen.add(k), true);
+  });
   await Promise.all([
     loadIdentityHeader(),
     loadSecurityBar(activityLogs),
@@ -119,11 +125,19 @@ async function loadSecurityBar(logs) {
 }
 
 // ACTIVITY STREAM
-async function loadActivity(logs) {
+async function loadActivity() {
   const listEl = document.getElementById('activity-list');
   listEl.innerHTML = '<div class="act-empty"><span class="spinner"></span></div>';
   try {
-    const sorted = logs
+    const currentBlock = await provider.getBlockNumber();
+    const fromBlock = Math.max(0, currentBlock - 1000);
+
+    const [loginLogs, actionLogs] = await Promise.all([
+      contract.queryFilter(contract.filters.LoginAttempt(userAddress), fromBlock, currentBlock),
+      contract.queryFilter(contract.filters.ActionLogged(userAddress), fromBlock, currentBlock),
+    ]);
+
+    const sorted = [...loginLogs, ...actionLogs]
       .filter(l => l.args)
       .sort((a, b) => Number(b.args.timestamp) - Number(a.args.timestamp))
       .slice(0, 30);
@@ -138,11 +152,12 @@ async function loadActivity(logs) {
 }
 
 function buildActivityItem(log) {
-  const type = Number(log.args.action);
-  const ts   = Number(log.args.timestamp) * 1000;
-  const el   = document.createElement('div');
-  el.className = 'activity-item';
-  el.innerHTML = `
+  const isLogin = log.fragment?.name === 'LoginAttempt';
+  const type    = isLogin ? (log.args.success ? 0 : -1) : Number(log.args.action);
+  const ts      = Number(log.args.timestamp) * 1000;
+  const el      = document.createElement('div');
+  el.className  = 'activity-item';
+  el.innerHTML  = `
     <div class="act-icon ${ActionClass[type] || 'nonce'}">${ActionIcon[type] || '·'}</div>
     <div class="act-body">
       <div class="act-title">${ActionName[type] || 'Action'}</div>
@@ -170,23 +185,28 @@ async function loadPendingApprovals() {
 
     const pending = [];
     for (const log of reqLogs) {
-      const id = log.args.approvalId;
+      const id = log.topics[1];
       if (approvedIds.has(id)) continue;
       try {
         const req = await contract.getApprovalRequest(id);
         if (!req.exists || req.isApproved) continue;
         const expiresAt = Number(log.args.expiresAt) * 1000;
         if (Date.now() > expiresAt) continue;
-        if (req.requester.toLowerCase() === userAddress.toLowerCase()) continue;
 
-        const reqSec    = await contract.getSecondaryWallet(req.requester);
-        const hasSec    = reqSec && reqSec !== ethers.ZeroAddress;
-        const canApprove = hasSec
+        const isRequester = req.requester.toLowerCase() === userAddress.toLowerCase();
+        const isTarget    = req.target.toLowerCase() === userAddress.toLowerCase();
+
+        const reqSec     = await contract.getSecondaryWallet(req.requester);
+        const hasSec     = reqSec && reqSec !== ethers.ZeroAddress;
+        const canApprove = !isRequester && (hasSec
           ? userAddress.toLowerCase() === reqSec.toLowerCase()
-          : isAdminL || isOwnerL;
+          : isAdminL || isOwnerL);
 
-        if (canApprove) pending.push({ id, req, expiresAt, log });
-      } catch (e) { continue; }
+        // admins see approvable requests, users see requests targeting them
+        if (canApprove || (!isAdminL && isTarget)) {
+          pending.push({ id, req, expiresAt, log, canApprove, isTarget });
+        }
+      } catch(e) { continue; }
     }
 
     countEl.textContent = pending.length;
@@ -194,8 +214,8 @@ async function loadPendingApprovals() {
 
     if (pending.length === 0) { listEl.innerHTML = '<div class="ap-empty">No pending approvals</div>'; return; }
     listEl.innerHTML = '';
-    pending.forEach(({ id, req, expiresAt }) => {
-      const actionType = Number(req.actionType);
+    pending.forEach(({ id, req, expiresAt, canApprove, isTarget }) => {
+      const actionType = Number(req.action);
       const typeName   = actionType === 0 ? 'Role Change' : 'Deactivation';
       const typeClass  = actionType === 0 ? 'role-change' : 'deactivation';
       const ttlMin     = Math.max(0, Math.round((expiresAt - Date.now()) / 60000));
@@ -206,9 +226,12 @@ async function loadPendingApprovals() {
           <span class="ap-type ${typeClass}">${typeName}</span>
           <span class="ap-ttl">Expires in ~${ttlMin}m</span>
         </div>
+        ${isTarget && !canApprove
+          ? `<div class="ap-target" style="color:var(--warn);font-size:11px">⚠ A pending action targets your account</div>`
+          : ''}
         <div class="ap-target">Target: ${req.target.slice(0, 10)}…${req.target.slice(-6)}</div>
         <div class="ap-target" style="font-size:10px;margin-top:2px">ID: ${id.slice(0, 14)}…</div>
-        <button class="ap-approve-btn" onclick="doApproveById('${id}')">Approve ✓</button>
+        ${canApprove ? `<button class="ap-approve-btn" onclick="doApproveById('${id}')">Approve ✓</button>` : ''}
       `;
       listEl.appendChild(el);
     });
@@ -243,6 +266,15 @@ async function loadMfaCard() {
   } catch (e) { console.error('loadMfaCard', e); }
 }
 
+async function waitWithTimeout(tx, ms = 60000) {
+  const receipt = await Promise.race([
+    tx.wait(),
+    new Promise((_, r) => setTimeout(() => r(new Error('Transaction timeout')), ms))
+  ]);
+  if (!receipt.status) throw new Error('Transaction reverted');
+  return receipt;
+}
+
 // ACTIONS
 async function doIncrementNonce() {
   const btn = document.getElementById('btn-inc-nonce');
@@ -251,7 +283,7 @@ async function doIncrementNonce() {
   try {
     const tx = await contract.incrementNonce();
     toast('Transaction submitted…');
-    await tx.wait();
+    await waitWithTimeout(tx)
     toast('Nonce incremented ✓', 'ok');
     await loadIdentityHeader();
   } catch (e) {
@@ -272,7 +304,7 @@ async function doSetSecondaryWallet() {
   try {
     const tx = await contract.setSecondaryWallet(addr);
     toast('Setting secondary wallet…');
-    await tx.wait();
+    await waitWithTimeout(tx)
     toast('Secondary wallet set ✓', 'ok');
     document.getElementById('mfa-input').value = '';
     await loadMfaCard();
@@ -290,7 +322,7 @@ async function doClearSecondaryWallet() {
   try {
     const tx = await contract.setSecondaryWallet(ethers.ZeroAddress);
     toast('Clearing secondary wallet…');
-    await tx.wait();
+    await waitWithTimeout(tx)
     toast('Secondary wallet cleared', 'ok');
     await loadMfaCard();
   } catch (e) {
@@ -307,14 +339,14 @@ async function doRequestCriticalAction() {
 
   const actionData = actionType === 0
     ? ethers.zeroPadValue(ethers.toBeHex(parseInt(document.getElementById('req-new-role').value)), 32)
-    : ethers.zeroPadValue(target.toLowerCase(), 32);
+    : ethers.zeroPadValue(ethers.toBeHex(ethers.toBigInt(target)), 32);
 
   const btn = document.getElementById('req-submit-btn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Submitting…';
   try {
     const tx = await contract.requestCriticalAction(target, actionType, actionData);
     toast('Requesting critical action…');
-    await tx.wait();
+    await waitWithTimeout(tx)
     const approvalId = await contract.buildApprovalId(userAddress, target, actionType, actionData);
     closeModal('request-action');
     toast('Action requested ✓ · ID: ' + approvalId.slice(0, 12) + '…', 'ok');
@@ -330,7 +362,7 @@ async function doApproveById(id) {
   try {
     const tx = await contract.approveCriticalAction(id);
     toast('Approving…');
-    await tx.wait();
+    await waitWithTimeout(tx)
     toast('Approved ✓', 'ok');
     await loadPendingApprovals();
     await loadActivity();
@@ -346,7 +378,7 @@ async function doApproveCriticalAction() {
   try {
     const tx = await contract.approveCriticalAction(id);
     toast('Approving critical action…');
-    await tx.wait();
+    await waitWithTimeout(tx)
     closeModal('approve-action');
     toast('Critical action approved ✓', 'ok');
     await loadPendingApprovals();
@@ -370,13 +402,14 @@ function openRequestActionModal() {
 
 // LIVE LISTENERS
 function setupEventListeners() {
-  contract.on(contract.filters.ActionLogged(null, userAddress), (actor, target, action, nonce, timestamp, event) => {
+  contract.on(contract.filters.ActionLogged(null, userAddress), async (actor, target, action, nonce, timestamp, event) => {
     const listEl = document.getElementById('activity-list');
     const item   = buildActivityItem(event.log);
     if (listEl.firstChild?.className === 'act-empty') listEl.innerHTML = '';
     listEl.prepend(item);
-    document.getElementById('id-nonce').textContent  = nonce.toString();
-    document.getElementById('sec-nonce').textContent = nonce.toString();
+    const freshNonce = await contract.getNonce(userAddress);
+    document.getElementById('id-nonce').textContent  = freshNonce.toString();
+    document.getElementById('sec-nonce').textContent = freshNonce.toString();
     toast('New event: ' + (ActionName[Number(action)] || 'Action'));
   });
 
@@ -410,11 +443,19 @@ function disconnect() {
 
 function showError(msg) {
   const screen = document.getElementById('loading-screen');
-  if (screen) screen.innerHTML = `
-    <div style="font-family:var(--mono);font-size:14px;color:var(--error);text-align:center;max-width:360px;line-height:1.7">
-      <div style="font-size:24px;margin-bottom:12px">⚠</div>
-      ${msg}
-      <br><br>
-      <a href="login.html" style="color:var(--accent2)">← Back to Login</a>
-    </div>`;
+  if (!screen) return;
+  screen.innerHTML = ''; // clear first
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'font-family:var(--mono);font-size:14px;color:var(--error);text-align:center;max-width:360px;line-height:1.7';
+  const icon = document.createElement('div');
+  icon.style.cssText = 'font-size:24px;margin-bottom:12px';
+  icon.textContent = '⚠';
+  const text = document.createElement('div');
+  text.textContent = msg; // FIX: textContent not innerHTML
+  const link = document.createElement('a');
+  link.href = 'login.html';
+  link.style.color = 'var(--accent2)';
+  link.textContent = '← Back to Login';
+  wrap.append(icon, text, document.createElement('br'), link);
+  screen.appendChild(wrap);
 }

@@ -32,7 +32,6 @@ function anyTimestamp() {
       : `expected positive BigInt timestamp, got ${val}`;
 }
 
-// Fixture
 describe("IdentityManager — Core Registry", function () {
   let registry: IdentityManager; 
   let owner:    SignerWithAddress;
@@ -43,7 +42,7 @@ describe("IdentityManager — Core Registry", function () {
   beforeEach(async function () {
     [owner, alice, bob, stranger] = await ethers.getSigners();
 
-    // Factory name changed
+    // Factory
     const Factory = await ethers.getContractFactory("IdentityManager");
     registry = (await Factory.deploy()) as unknown as IdentityManager; 
     await registry.waitForDeployment();
@@ -231,7 +230,6 @@ describe("IdentityManager — Core Registry", function () {
       // Must use a different admin account
       await registry.connect(owner).assignRole(alice.address, Role.Admin);
 
-      // Alice (admin) must request 2FA approval for deactivation
       const actionData = ethers.zeroPadValue(ethers.toBeHex(ethers.toBigInt(ethers.getAddress(owner.address))), 32);
       const approvalId = await registry.connect(alice).requestCriticalAction.staticCall(
         owner.address,
@@ -331,7 +329,7 @@ describe("IdentityManager — Core Registry", function () {
     });
   });
 
-  // View helpers
+  // View helpers: simple read-only checks
   describe("View helpers", function () {
 
     beforeEach(async function () {

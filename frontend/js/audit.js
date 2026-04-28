@@ -227,7 +227,9 @@ async function runQuery() {
       );
     }
 
-    let rows = (await Promise.all(fetches)).flat().filter(Boolean);
+    let rows = (await Promise.allSettled(fetches)).filter(r => r.status === 'fulfilled').flatMap(r => r.value).filter(Boolean);
+    const failed = fetches.length - rows.length;
+    if (failed > 0) toast(`${failed} event type(s) failed to load`, 'warn');
 
     if (fType === 'all') {
       const txHasSpecificEvent = new Set(
@@ -494,12 +496,11 @@ function sortBy(field) {
 }
 
 // EXPORT
-function exportCSV() {
-  window.exportCSV(allResults, `identitymanager-audit-${Date.now()}.csv`);
+function doExportCSV() {
+  exportCSV(allResults, `identitymanager-audit-${Date.now()}.csv`);
 }
-
-function exportPrintReport() {
-  window.exportPrintReport(allResults);
+function doExportPrintReport() {
+  exportPrintReport(allResults);
 }
 
 // LIVE STREAM
@@ -541,7 +542,7 @@ function startLive() {
   };
   const critReqHandler = (approvalId, requester, target, actionType, expiresAt, event) => {
     appendLiveItem({ label: 'Critical Req.', icon: '🔐', cls: 'critical', actor: requester, target,
-      nonce: '—', timestamp: Number(expiresAt) * 1000,
+      nonce: '—', timestamp: Number(timestamp) * 1000,
       txHash: event.log?.transactionHash || event.transactionHash, isAnomaly: false });
   };
   const critAppHandler = (approvalId, approver, timestamp, event) => {

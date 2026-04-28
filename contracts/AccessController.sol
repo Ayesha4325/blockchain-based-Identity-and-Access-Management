@@ -71,8 +71,8 @@ contract AccessController is AuditLogger {
         if (msg.sender != owner) {
             ApprovalRequest storage req = _getApproval(approvalId);
             if (!req.exists)     revert ApprovalNotFound(approvalId);
-            if (!req.isApproved) revert ApprovalRequired(approvalId);
             if (block.timestamp > req.requestedAt + APPROVAL_TTL) revert ApprovalExpired(approvalId);
+            if (!req.isApproved) revert ApprovalRequired(approvalId);
             _;
             _deleteApproval(approvalId);
         } else {
@@ -142,15 +142,21 @@ contract AccessController is AuditLogger {
         _logAction(msg.sender, req.target, ActionType.CriticalApproved, _getNonce(req.target));
     }
 
+    uint256 public ownershipTransferExpiry;
+    uint256 private constant TRANSFER_TTL = 24 hours;
+
     function transferOwnership(address _newOwner) external onlyOwner {
         require(_newOwner != address(0), "AC: zero address");
         pendingOwner = _newOwner;
+        ownershipTransferExpiry = block.timestamp + TRANSFER_TTL; 
     }
 
     function acceptOwnership() external {
         require(msg.sender == pendingOwner, "AC: not pending owner");
+        require(block.timestamp < ownershipTransferExpiry, "AC: transfer expired");
         owner = pendingOwner;
         pendingOwner = address(0);
+        ownershipTransferExpiry = 0;
     }
 
     function _uint2str(uint256 value) internal pure returns (string memory) {

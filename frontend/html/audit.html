@@ -82,10 +82,10 @@
         </button>
       </div>
       <div class="mode-right">
-        <button class="export-btn" id="export-csv-btn" onclick="exportCSV()" disabled>
+        <button class="export-btn" id="export-csv-btn" onclick="doExportCSV()" disabled>
           ↓ Export CSV
         </button>
-        <button class="export-btn" id="export-pdf-btn" onclick="exportPrintReport()" disabled>
+        <button class="export-btn" id="export-pdf-btn" onclick="doExportPrintReport()" disabled>
           ↓ Export Report
         </button>
       </div>
@@ -246,6 +246,11 @@
 <script src="../js/events.js"></script>
 <script src="../js/ui.js"></script>
 <script src="../js/audit.js"></script>
+<noscript>
+  <p style="text-align:center;padding:40px">
+    JavaScript and MetaMask required.
+  </p>
+</noscript>
 
 </body>
 </html>

@@ -190,7 +190,6 @@ function detectAnomalies(rows) {
   rows.forEach(r => {
     const addr = (r.actor || r.wallet || '').toLowerCase();
     if (anomalyAddrs.has(addr)) r.isAnomaly = true;
-    if (r.source === 'login' && !r.raw.args?.success) r.isAnomaly = true;
   });
 
   const anomalyCount = rows.filter(r => r.isAnomaly).length;
